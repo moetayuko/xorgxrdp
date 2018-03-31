@@ -8,8 +8,7 @@ Files: tests/Makefile.am
 Copyright: 2004-2017, Jay Sorg <jay.sorg@gmail.com>
 License: Apache-2.0
 
-Files: sesman/chansrv/chansrv.c
- module/rdpCapture.c
+Files: module/rdpCapture.c
  module/rdpCapture.h
 Copyright: 2014, Laxmikant Rashinkar
   2014-2016, Jay Sorg
@@ -191,6 +190,7 @@ Files: Makefile.in
  aclocal.m4
  Makefile.in
  config_ac-h.in
+ m4/.gitignore
  module/Makefile.in
  tests/Makefile.in
  xrdpdev/Makefile.in
