@@ -3,182 +3,182 @@ Upstream-Name: xorgxrdp
 Upstream-Contact: Jay Sorg <jay.sorg@gmail.com>
 Source: https://github.com/neutrinolabs/xorgxrdp
 
-Files: xorgxrdp/tests/Makefile.am
- xorgxrdp/tests/xorg-test-run.sh
+Files: tests/Makefile.am
+ tests/xorg-test-run.sh
  xrdp/ght: 2004-2017, Jay Sorg <jay.sorg@gmail.com>
 License: Apache-2.0
 
 Files: sesman/chansrv/chansrv.c
- xorgxrdp/module/rdpCapture.c
- xorgxrdp/module/rdpCapture.h
+ module/rdpCapture.c
+ module/rdpCapture.h
 Copyright: 2014, Laxmikant Rashinkar
   2014-2016, Jay Sorg
 License: Expat
 
-Files: xorgxrdp/COPYING
- xorgxrdp/Makefile.am
- xorgxrdp/bootstrap
- xorgxrdp/configure.ac
- xorgxrdp/m4/nasm.m4
- xorgxrdp/module/Makefile.am
- xorgxrdp/module/amd64/Makefile.am
- xorgxrdp/module/amd64/a8r8g8b8_to_a8b8g8r8_box_amd64_sse2.asm
- xorgxrdp/module/amd64/a8r8g8b8_to_nv12_box_amd64_sse2.asm
- xorgxrdp/module/amd64/cpuid_amd64.asm
- xorgxrdp/module/amd64/funcs_amd64.h
- xorgxrdp/module/amd64/i420_to_rgb32_amd64_sse2.asm
- xorgxrdp/module/amd64/uyvy_to_rgb32_amd64_sse2.asm
- xorgxrdp/module/amd64/yuy2_to_rgb32_amd64_sse2.asm
- xorgxrdp/module/amd64/yv12_to_rgb32_amd64_sse2.asm
- xorgxrdp/module/nasm_lt.sh
- xorgxrdp/module/rdp.h
- xorgxrdp/module/rdpClientCon.c
- xorgxrdp/module/rdpClientCon.h
- xorgxrdp/module/rdpComposite.c
- xorgxrdp/module/rdpComposite.h
- xorgxrdp/module/rdpCopyArea.c
- xorgxrdp/module/rdpCopyArea.h
- xorgxrdp/module/rdpCopyPlane.c
- xorgxrdp/module/rdpCopyPlane.h
- xorgxrdp/module/rdpCursor.c
- xorgxrdp/module/rdpCursor.h
- xorgxrdp/module/rdpDraw.c
- xorgxrdp/module/rdpDraw.h
- xorgxrdp/module/rdpFillPolygon.c
- xorgxrdp/module/rdpFillPolygon.h
- xorgxrdp/module/rdpFillSpans.c
- xorgxrdp/module/rdpFillSpans.h
- xorgxrdp/module/rdpGC.c
- xorgxrdp/module/rdpGC.h
- xorgxrdp/module/rdpGlyphs.c
- xorgxrdp/module/rdpGlyphs.h
- xorgxrdp/module/rdpImageGlyphBlt.c
- xorgxrdp/module/rdpImageGlyphBlt.h
- xorgxrdp/module/rdpImageText16.c
- xorgxrdp/module/rdpImageText16.h
- xorgxrdp/module/rdpImageText8.c
- xorgxrdp/module/rdpImageText8.h
- xorgxrdp/module/rdpInput.c
- xorgxrdp/module/rdpInput.h
- xorgxrdp/module/rdpMain.c
- xorgxrdp/module/rdpMain.h
- xorgxrdp/module/rdpMisc.c
- xorgxrdp/module/rdpMisc.h
- xorgxrdp/module/rdpPixmap.c
- xorgxrdp/module/rdpPixmap.h
- xorgxrdp/module/rdpPolyArc.c
- xorgxrdp/module/rdpPolyArc.h
- xorgxrdp/module/rdpPolyFillArc.c
- xorgxrdp/module/rdpPolyFillArc.h
- xorgxrdp/module/rdpPolyFillRect.c
- xorgxrdp/module/rdpPolyFillRect.h
- xorgxrdp/module/rdpPolyGlyphBlt.c
- xorgxrdp/module/rdpPolyGlyphBlt.h
- xorgxrdp/module/rdpPolyPoint.c
- xorgxrdp/module/rdpPolyPoint.h
- xorgxrdp/module/rdpPolyRectangle.c
- xorgxrdp/module/rdpPolyRectangle.h
- xorgxrdp/module/rdpPolySegment.c
- xorgxrdp/module/rdpPolySegment.h
- xorgxrdp/module/rdpPolyText16.c
- xorgxrdp/module/rdpPolyText16.h
- xorgxrdp/module/rdpPolyText8.c
- xorgxrdp/module/rdpPolyText8.h
- xorgxrdp/module/rdpPolylines.c
- xorgxrdp/module/rdpPolylines.h
- xorgxrdp/module/rdpPri.c
- xorgxrdp/module/rdpPri.h
- xorgxrdp/module/rdpPushPixels.c
- xorgxrdp/module/rdpPushPixels.h
- xorgxrdp/module/rdpPutImage.c
- xorgxrdp/module/rdpPutImage.h
- xorgxrdp/module/rdpRandR.c
- xorgxrdp/module/rdpRandR.h
- xorgxrdp/module/rdpReg.c
- xorgxrdp/module/rdpReg.h
- xorgxrdp/module/rdpSetSpans.c
- xorgxrdp/module/rdpSetSpans.h
- xorgxrdp/module/rdpSimd.c
- xorgxrdp/module/rdpSimd.h
- xorgxrdp/module/rdpTrapezoids.c
- xorgxrdp/module/rdpTrapezoids.h
- xorgxrdp/module/rdpXv.c
- xorgxrdp/module/rdpXv.h
- xorgxrdp/module/x86/Makefile.am
- xorgxrdp/module/x86/a8r8g8b8_to_a8b8g8r8_box_x86_sse2.asm
- xorgxrdp/module/x86/a8r8g8b8_to_nv12_box_x86_sse2.asm
- xorgxrdp/module/x86/cpuid_x86.asm
- xorgxrdp/module/x86/funcs_x86.h
- xorgxrdp/module/x86/i420_to_rgb32_x86_sse2.asm
- xorgxrdp/module/x86/uyvy_to_rgb32_x86_sse2.asm
- xorgxrdp/module/x86/yuy2_to_rgb32_x86_sse2.asm
- xorgxrdp/module/x86/yv12_to_rgb32_x86_sse2.asm
- xorgxrdp/README.md
- xorgxrdp/tests/yuv2rgb/Makefile.am
- xorgxrdp/tests/yuv2rgb/yuv2rgb_speed.c
- xorgxrdp/tests/yuv2rgb/yuv2rgb_speed.sh
- xorgxrdp/xrdpdev/Makefile.am
- xorgxrdp/xrdpdev/xorg.conf
- xorgxrdp/xrdpdev/xrdpdev.c
- xorgxrdp/xrdpkeyb/Makefile.am
- xorgxrdp/xrdpkeyb/rdpKeyboard.c
- xorgxrdp/xrdpmouse/Makefile.am
- xorgxrdp/xrdpmouse/rdpMouse.c
+Files: COPYING
+ Makefile.am
+ bootstrap
+ configure.ac
+ m4/nasm.m4
+ module/Makefile.am
+ module/amd64/Makefile.am
+ module/amd64/a8r8g8b8_to_a8b8g8r8_box_amd64_sse2.asm
+ module/amd64/a8r8g8b8_to_nv12_box_amd64_sse2.asm
+ module/amd64/cpuid_amd64.asm
+ module/amd64/funcs_amd64.h
+ module/amd64/i420_to_rgb32_amd64_sse2.asm
+ module/amd64/uyvy_to_rgb32_amd64_sse2.asm
+ module/amd64/yuy2_to_rgb32_amd64_sse2.asm
+ module/amd64/yv12_to_rgb32_amd64_sse2.asm
+ module/nasm_lt.sh
+ module/rdp.h
+ module/rdpClientCon.c
+ module/rdpClientCon.h
+ module/rdpComposite.c
+ module/rdpComposite.h
+ module/rdpCopyArea.c
+ module/rdpCopyArea.h
+ module/rdpCopyPlane.c
+ module/rdpCopyPlane.h
+ module/rdpCursor.c
+ module/rdpCursor.h
+ module/rdpDraw.c
+ module/rdpDraw.h
+ module/rdpFillPolygon.c
+ module/rdpFillPolygon.h
+ module/rdpFillSpans.c
+ module/rdpFillSpans.h
+ module/rdpGC.c
+ module/rdpGC.h
+ module/rdpGlyphs.c
+ module/rdpGlyphs.h
+ module/rdpImageGlyphBlt.c
+ module/rdpImageGlyphBlt.h
+ module/rdpImageText16.c
+ module/rdpImageText16.h
+ module/rdpImageText8.c
+ module/rdpImageText8.h
+ module/rdpInput.c
+ module/rdpInput.h
+ module/rdpMain.c
+ module/rdpMain.h
+ module/rdpMisc.c
+ module/rdpMisc.h
+ module/rdpPixmap.c
+ module/rdpPixmap.h
+ module/rdpPolyArc.c
+ module/rdpPolyArc.h
+ module/rdpPolyFillArc.c
+ module/rdpPolyFillArc.h
+ module/rdpPolyFillRect.c
+ module/rdpPolyFillRect.h
+ module/rdpPolyGlyphBlt.c
+ module/rdpPolyGlyphBlt.h
+ module/rdpPolyPoint.c
+ module/rdpPolyPoint.h
+ module/rdpPolyRectangle.c
+ module/rdpPolyRectangle.h
+ module/rdpPolySegment.c
+ module/rdpPolySegment.h
+ module/rdpPolyText16.c
+ module/rdpPolyText16.h
+ module/rdpPolyText8.c
+ module/rdpPolyText8.h
+ module/rdpPolylines.c
+ module/rdpPolylines.h
+ module/rdpPri.c
+ module/rdpPri.h
+ module/rdpPushPixels.c
+ module/rdpPushPixels.h
+ module/rdpPutImage.c
+ module/rdpPutImage.h
+ module/rdpRandR.c
+ module/rdpRandR.h
+ module/rdpReg.c
+ module/rdpReg.h
+ module/rdpSetSpans.c
+ module/rdpSetSpans.h
+ module/rdpSimd.c
+ module/rdpSimd.h
+ module/rdpTrapezoids.c
+ module/rdpTrapezoids.h
+ module/rdpXv.c
+ module/rdpXv.h
+ module/x86/Makefile.am
+ module/x86/a8r8g8b8_to_a8b8g8r8_box_x86_sse2.asm
+ module/x86/a8r8g8b8_to_nv12_box_x86_sse2.asm
+ module/x86/cpuid_x86.asm
+ module/x86/funcs_x86.h
+ module/x86/i420_to_rgb32_x86_sse2.asm
+ module/x86/uyvy_to_rgb32_x86_sse2.asm
+ module/x86/yuy2_to_rgb32_x86_sse2.asm
+ module/x86/yv12_to_rgb32_x86_sse2.asm
+ README.md
+ tests/yuv2rgb/Makefile.am
+ tests/yuv2rgb/yuv2rgb_speed.c
+ tests/yuv2rgb/yuv2rgb_speed.sh
+ xrdpdev/Makefile.am
+ xrdpdev/xorg.conf
+ xrdpdev/xrdpdev.c
+ xrdpkeyb/Makefile.am
+ xrdpkeyb/rdpKeyboard.c
+ xrdpmouse/Makefile.am
+ xrdpmouse/rdpMouse.c
 Copyright: 2011-2016, Jay Sorg
 License: Expat
 
-Files: xorgxrdp/module/common.asm
+Files: module/common.asm
 Copyright: 2017 Pavel Roskin
  2017 mirabilos
 License: Expat
 
-Files: xorgxrdp/m4/ax_append_flag.m4
+Files: m4/ax_append_flag.m4
 Copyright: 2008, Guido U. Draheim <guidod@gmx.de>
  2011, Maarten Bosmans <mkbosmans@gmail.com>
 License: GPL-3+~autoconf
 
-Files: xorgxrdp/m4/ax_cflags_warn_all.m4
+Files: m4/ax_cflags_warn_all.m4
 Copyright: 2008, Guido U. Draheim <guidod@gmx.de>
  2010, Rhys Ulerich <rhys.ulerich@gmail.com>
 License: GPL-3+~autoconf
 
-Files: xorgxrdp/m4/ax_gcc_func_attribute.m4
+Files: m4/ax_gcc_func_attribute.m4
 Copyright: 2013, Gabriele Svelto <gabriele.svelto@gmail.com>
 License: custom-historic
 
-Files: xorgxrdp/m4/ax_require_defined.m4
+Files: m4/ax_require_defined.m4
 Copyright: 2014, Mike Frysinger <vapier@gentoo.org>
 License: custom-historic
 
-Files: xorgxrdp/m4/ax_append_compile_flags.m4
+Files: m4/ax_append_compile_flags.m4
 Copyright: 2011 Maarten Bosmans <mkbosmans@gmail.com>
 License: GPL-3+~autoconf
 
-Files: xorgxrdp/m4/ax_check_compile_flag.m4
+Files: m4/ax_check_compile_flag.m4
 Copyright: 2008 Guido U. Draheim <guidod@gmx.de>
  2011 Maarten Bosmans <mkbosmans@gmail.com>
 License: GPL-3+~autoconf
 
-Files: xorgxrdp/compile
- xorgxrdp/depcomp
- xorgxrdp/config.guess
- xorgxrdp/config.sub
- xorgxrdp/ltmain.sh
- xorgxrdp/missing
- xorgxrdp/test-driver
+Files: compile
+ depcomp
+ config.guess
+ config.sub
+ ltmain.sh
+ missing
+ test-driver
 Copyright: 1996-2013 Free Software Foundation, Inc.
 License: GPL-3+~autoconf
 
-Files: xorgxrdp/configure
- xorgxrdp/m4/libtool.m4
- xorgxrdp/m4/ltoptions.m4
- xorgxrdp/m4/ltsugar.m4
- xorgxrdp/m4/ltversion.m4
- xorgxrdp/m4/lt~obsolete.m4
+Files: configure
+ m4/libtool.m4
+ m4/ltoptions.m4
+ m4/ltsugar.m4
+ m4/ltversion.m4
+ m4/lt~obsolete.m4
 Copyright: 1996-2013 Free Software Foundation
 License: autoreconf-free
 
-Files: xorgxrdp/install-sh
+Files: install-sh
 Copyright: 1994 X Consortium
 License: Expat
 
@@ -187,18 +187,18 @@ Copyright: Dominik George <nik@naturalnet.de>
  Thorsten Glaser <tg@mirbsd.org>
 License: MirOS
 
-Files: xorgxrdp/Makefile.in
- xorgxrdp/aclocal.m4
- xorgxrdp/Makefile.in
- xorgxrdp/config_ac-h.in
- xorgxrdp/module/Makefile.in
- xorgxrdp/tests/Makefile.in
- xorgxrdp/xrdpdev/Makefile.in
- xorgxrdp/xrdpkeyb/Makefile.in
- xorgxrdp/xrdpmouse/Makefile.in
- xorgxrdp/module/amd64/Makefile.in
- xorgxrdp/module/x86/Makefile.in
- xorgxrdp/tests/yuv2rgb/Makefile.in
+Files: Makefile.in
+ aclocal.m4
+ Makefile.in
+ config_ac-h.in
+ module/Makefile.in
+ tests/Makefile.in
+ xrdpdev/Makefile.in
+ xrdpkeyb/Makefile.in
+ xrdpmouse/Makefile.in
+ module/amd64/Makefile.in
+ module/x86/Makefile.in
+ tests/yuv2rgb/Makefile.in
 Copyright: None
 License: None
  Not copyrightable or generated.
