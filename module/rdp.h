@@ -30,20 +30,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <gcstruct.h>
 #include <mipointer.h>
 #include <randrstr.h>
-#include <damage.h>
 
 #include "rdpPri.h"
 
 #include "xrdp_client_info.h"
-#include "xrdp_constants.h"
 
 #define XRDP_MODULE_NAME "XORGXRDP"
 #define XRDP_DRIVER_NAME "XRDPDEV"
 #define XRDP_MOUSE_NAME "XRDPMOUSE"
 #define XRDP_KEYB_NAME "XRDPKEYB"
 #define XRDP_VERSION 1000
-
-#define RDP_MAX_TILES 4096
 
 #define COLOR8(r, g, b) \
     ((((r) >> 5) << 0)  | (((g) >> 5) << 3) | (((b) >> 6) << 6))
@@ -60,6 +56,29 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         b = (c) & 0xff; \
     } while (0)
 
+/* PIXMAN_a8b8g8r8 */
+#define XRDP_a8b8g8r8 \
+((32 << 24) | (3 << 16) | (8 << 12) | (8 << 8) | (8 << 4) | 8)
+/* PIXMAN_a8r8g8b8 */
+#define XRDP_a8r8g8b8 \
+((32 << 24) | (2 << 16) | (8 << 12) | (8 << 8) | (8 << 4) | 8)
+/* PIXMAN_r5g6b5 */
+#define XRDP_r5g6b5 \
+((16 << 24) | (2 << 16) | (0 << 12) | (5 << 8) | (6 << 4) | 5)
+/* PIXMAN_a1r5g5b5 */
+#define XRDP_a1r5g5b5 \
+((16 << 24) | (2 << 16) | (1 << 12) | (5 << 8) | (5 << 4) | 5)
+/* PIXMAN_r3g3b2 */
+#define XRDP_r3g3b2 \
+((8 << 24) | (2 << 16) | (0 << 12) | (3 << 8) | (3 << 4) | 2)
+
+/* XRDP_nv12 */
+#define XRDP_nv12 \
+((12 << 24) | (64 << 16) | (0 << 12) | (0 << 8) | (0 << 4) | 0)
+/* XRDP_nv12 */
+#define XRDP_i420 \
+((12 << 24) | (65 << 16) | (0 << 12) | (0 << 8) | (0 << 4) | 0)
+
 #define PixelToMM(_size, _dpi) (((_size) * 254 + (_dpi) * 5) / ((_dpi) * 10))
 
 #define RDPMIN(_val1, _val2) ((_val1) < (_val2) ? (_val1) : (_val2))
@@ -67,9 +86,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RDPCLAMP(_val, _lo, _hi) \
     ((_val) < (_lo) ? (_lo) : (_val) > (_hi) ? (_hi) : (_val))
 #define RDPALIGN(_val, _al) ((((uintptr_t)(_val)) + ((_al) - 1)) & ~((_al) - 1))
-
-#define XRDP_RFX_ALIGN 64
-#define XRDP_H264_ALIGN 16
 
 #define XRDP_CD_NODRAW 0
 #define XRDP_CD_NOCLIP 1
@@ -97,18 +113,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 struct image_data
 {
-    int left;
-    int top;
     int width;
     int height;
     int bpp;
     int Bpp;
     int lineBytes;
-    int flags;
     uint8_t *pixels;
     uint8_t *shmem_pixels;
-    int shmem_fd;
-    int shmem_bytes;
+    int shmem_id;
     int shmem_offset;
     int shmem_lineBytes;
 };
@@ -189,9 +201,7 @@ struct _rdpCounts
     CARD32 rdpCompositeCallCount;
     CARD32 rdpCopyWindowCallCount; /* 22 */
     CARD32 rdpTrapezoidsCallCount;
-    CARD32 rdpTrianglesCallCount;
-    CARD32 rdpCompositeRectsCallCount;
-    CARD32 callCount[64 - 25];
+    CARD32 callCount[64 - 23];
 };
 
 typedef int (*yuv_to_rgb32_proc)(const uint8_t *yuvs, int width, int height, int *rgbs);
@@ -232,9 +242,6 @@ struct _rdpRec
     CompositeProcPtr Composite;
     GlyphsProcPtr Glyphs;
     TrapezoidsProcPtr Trapezoids;
-    CreateScreenResourcesProcPtr CreateScreenResources;
-    TrianglesProcPtr Triangles;
-    CompositeRectsProcPtr CompositeRects;
 
     /* keyboard and mouse */
     miPointerScreenFuncPtr pCursorFuncs;
@@ -256,7 +263,6 @@ struct _rdpRec
     RROutputGetPropertyProcPtr rrOutputGetProperty;
     RRGetPanningProcPtr rrGetPanning;
     RRSetPanningProcPtr rrSetPanning;
-    int allow_screen_resize;
 
     int listen_sck;
     char uds_data[256];
@@ -269,18 +275,14 @@ struct _rdpRec
     int sendUpdateScheduled; /* boolean */
     OsTimerPtr sendUpdateTimer;
 
+    int do_dirty_os; /* boolean */
     int do_dirty_ons; /* boolean */
     int disconnect_scheduled; /* boolean */
     int do_kill_disconnected; /* boolean */
 
     OsTimerPtr disconnectTimer;
     int disconnect_timeout_s;
-    CARD32 disconnect_time_ms;
-
-    OsTimerPtr idleDisconnectTimer;
-    int idle_disconnect_timeout_s;
-    CARD32 last_event_time_ms;
-    CARD32 last_wheel_time_ms;
+    int disconnect_time_ms;
 
     int conNumber;
 
@@ -299,18 +301,13 @@ struct _rdpRec
     copy_box_dst2_proc a8r8g8b8_to_nv12_box;
 
     /* multimon */
+    int extra_outputs;
+    RRCrtcPtr crtc[16];
+    RROutputPtr output[16];
     struct monitor_info minfo[16]; /* client monitor data */
     int doMultimon;
     int monitorCount;
-    /* glamor */
-    Bool glamor;
-    PixmapPtr screenSwPixmap;
-    void *xvPutImage;
-    /* dri */
-    int fd;
-    /* egl */
-    void *egl;
-    DamagePtr damage;
+
 };
 typedef struct _rdpRec rdpRec;
 typedef struct _rdpRec * rdpPtr;

@@ -49,17 +49,6 @@ struct rdpup_os_bitmap
     int stamp;
 };
 
-enum shared_memory_status {
-    SHM_UNINITIALIZED = 0,
-    SHM_RESIZING,
-    SHM_ACTIVE_PENDING,
-    SHM_RFX_ACTIVE_PENDING,
-    SHM_H264_ACTIVE_PENDING,
-    SHM_ACTIVE,
-    SHM_RFX_ACTIVE,
-    SHM_H264_ACTIVE
-};
-
 /* one of these for each client */
 struct _rdpClientCon
 {
@@ -71,9 +60,12 @@ struct _rdpClientCon
     struct stream *out_s;
     struct stream *in_s;
 
-    int connected; /* boolean. Set to False when I/O fails */
+    int rectIdAck;
+    int rectId;
+    int connected; /* boolean */
     int begin; /* boolean */
     int count;
+    int sckClosed; /* boolean */
     struct rdpup_os_bitmap *osBitmaps;
     int maxOsBitmaps;
     int osBitmapStamp;
@@ -107,29 +99,21 @@ struct _rdpClientCon
     struct xrdp_client_info client_info;
 
     uint8_t *shmemptr;
-    int shmemfd;
-    int shmem_bytes;
+    int shmemid;
     int shmem_lineBytes;
     RegionPtr shmRegion;
     int rect_id;
     int rect_id_ack;
-    enum shared_memory_status shmemstatus;
 
     OsTimerPtr updateTimer;
-    CARD32 lastUpdateTime; /* millisecond timestamp */
     int updateScheduled; /* boolean */
-    int updateRetries;
 
     RegionPtr dirtyRegion;
 
-    int num_rfx_crcs_alloc[16];
-    int *rfx_crcs[16];
-
-    /* true = skip drawing */
-    int suppress_output;
+    int num_rfx_crcs_alloc;
+    int *rfx_crcs;
 
     struct _rdpClientCon *next;
-    struct _rdpClientCon *prev;
 };
 
 extern _X_EXPORT int
@@ -138,6 +122,9 @@ extern _X_EXPORT int
 rdpClientConEndUpdate(rdpPtr dev, rdpClientCon *clientCon);
 extern _X_EXPORT int
 rdpClientConSetFgcolor(rdpPtr dev, rdpClientCon *clientCon, int fgcolor);
+extern _X_EXPORT void
+rdpClientConSendArea(rdpPtr dev, rdpClientCon *clientCon,
+                     struct image_data *id, int x, int y, int w, int h);
 extern _X_EXPORT int
 rdpClientConFillRect(rdpPtr dev, rdpClientCon *clientCon,
                      short x, short y, int cx, int cy);
@@ -181,10 +168,5 @@ extern _X_EXPORT int
 rdpClientConSetCursorEx(rdpPtr dev, rdpClientCon *clientCon,
                         short x, short y, uint8_t *cur_data,
                         uint8_t *cur_mask, int bpp);
-extern _X_EXPORT int
-rdpClientConSetCursorShmFd(rdpPtr dev, rdpClientCon *clientCon,
-                           short x, short y,
-                           uint8_t *cur_data, uint8_t *cur_mask, int bpp,
-                           int width, int height);
 
 #endif

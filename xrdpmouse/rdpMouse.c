@@ -50,9 +50,6 @@ xrdp mouse module
 #include "rdpInput.h"
 #include "rdpDraw.h"
 
-#define NBUTTONS 9
-#define NAXES 4
-
 /******************************************************************************/
 #define LOG_LEVEL 1
 #define LLOGLN(_level, _args) \
@@ -124,14 +121,14 @@ PtrAddEvent(rdpPointer *pointer)
     LLOGLN(10, ("PtrAddEvent: x %d y %d", pointer->cursor_x, pointer->cursor_y));
 
     if ((pointer->old_cursor_x != pointer->cursor_x) ||
-            (pointer->old_cursor_y != pointer->cursor_y))
+        (pointer->old_cursor_y != pointer->cursor_y))
     {
         rdpEnqueueMotion(pointer->device, pointer->cursor_x, pointer->cursor_y);
         pointer->old_cursor_x = pointer->cursor_x;
         pointer->old_cursor_y = pointer->cursor_y;
     }
 
-    for (i = 0; i < NBUTTONS; i++)
+    for (i = 0; i < 7; i++)
     {
         if ((pointer->button_mask ^ pointer->old_button_mask) & (1 << i))
         {
@@ -154,40 +151,6 @@ PtrAddEvent(rdpPointer *pointer)
 }
 
 /******************************************************************************/
-// Maybe make it configurable later
-#define SCALE_FACTOR 10
-
-static void
-PtrAddScrollEvent(rdpPointer *pointer, int vertical, int delta)
-{
-    ValuatorMask *scroll_events_mask;
-    int mask_pos;
-    int scaled_delta;
-
-    LLOGLN(10, ("PtrAddScrollEvent: vertical %d y %d", vertical, delta));
-
-    scroll_events_mask = valuator_mask_new(NAXES);
-    mask_pos = vertical ? 2 : 3;
-    scaled_delta = delta / SCALE_FACTOR == 0 ? delta > 0 ? 1 : -1 : delta / SCALE_FACTOR;
-
-    // XWindow's and RDP's scrolling directions are exactly opposite
-    // on vertical(Need document references).
-    if (vertical)
-    {
-        scaled_delta = -scaled_delta;
-    }
-
-    valuator_mask_zero(scroll_events_mask);
-    valuator_mask_set_double(scroll_events_mask, mask_pos, scaled_delta);
-
-    xf86PostMotionEventM(pointer->device, FALSE, scroll_events_mask);
-
-    valuator_mask_free(&scroll_events_mask);
-
-    pointer->old_button_mask = pointer->button_mask;
-}
-
-/******************************************************************************/
 static int
 rdpInputMouse(rdpPtr dev, int msg,
               long param1, long param2,
@@ -196,94 +159,72 @@ rdpInputMouse(rdpPtr dev, int msg,
     rdpPointer *pointer;
 
     LLOGLN(10, ("rdpInputMouse: msg %d param1 %ld param2 %ld param3 %ld param4 %ld",
-                msg, param1, param2, param3, param4));
+           msg, param1, param2, param3, param4));
     pointer = &(dev->pointer);
     switch (msg)
     {
-        case WM_MOUSEMOVE:
+        case 100:
             /* without the minus 2, strange things happen when dragging
                past the width or height */
             pointer->cursor_x = l_bound_by(param1, 0, dev->width - 2);
             pointer->cursor_y = l_bound_by(param2, 0, dev->height - 2);
             PtrAddEvent(pointer);
             break;
-        case WM_LBUTTONUP:
+        case 101:
             pointer->button_mask = pointer->button_mask & (~1);
             PtrAddEvent(pointer);
             break;
-        case WM_LBUTTONDOWN:
+        case 102:
             pointer->button_mask = pointer->button_mask | 1;
             PtrAddEvent(pointer);
             break;
-        case WM_RBUTTONUP:
+        case 103:
             pointer->button_mask = pointer->button_mask & (~4);
             PtrAddEvent(pointer);
             break;
-        case WM_RBUTTONDOWN:
+        case 104:
             pointer->button_mask = pointer->button_mask | 4;
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON3UP:
+        case 105:
             pointer->button_mask = pointer->button_mask & (~2);
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON3DOWN:
+        case 106:
             pointer->button_mask = pointer->button_mask | 2;
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON4UP:
+        case 107:
             pointer->button_mask = pointer->button_mask & (~8);
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON4DOWN:
+        case 108:
             pointer->button_mask = pointer->button_mask | 8;
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON5UP:
+        case 109:
             pointer->button_mask = pointer->button_mask & (~16);
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON5DOWN:
+        case 110:
             pointer->button_mask = pointer->button_mask | 16;
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON6UP:
+        case 111:
             pointer->button_mask = pointer->button_mask & (~32);
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON6DOWN:
+        case 112:
             pointer->button_mask = pointer->button_mask | 32;
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON7UP:
+        case 113:
             pointer->button_mask = pointer->button_mask & (~64);
             PtrAddEvent(pointer);
             break;
-        case WM_BUTTON7DOWN:
+        case 114:
             pointer->button_mask = pointer->button_mask | 64;
             PtrAddEvent(pointer);
-            break;
-        case WM_BUTTON8UP:
-            pointer->button_mask = pointer->button_mask & (~128);
-            PtrAddEvent(pointer);
-            break;
-        case WM_BUTTON8DOWN:
-            pointer->button_mask = pointer->button_mask | 128;
-            PtrAddEvent(pointer);
-            break;
-        case WM_BUTTON9UP:
-            pointer->button_mask = pointer->button_mask & (~256);
-            PtrAddEvent(pointer);
-            break;
-        case WM_BUTTON9DOWN:
-            pointer->button_mask = pointer->button_mask | 256;
-            PtrAddEvent(pointer);
-            break;
-        case WM_TOUCH_VSCROLL:
-            PtrAddScrollEvent(pointer, TRUE, param3);
-            break;
-        case WM_TOUCH_HSCROLL:
-            PtrAddScrollEvent(pointer, FALSE, param3);
             break;
     }
     return 0;
@@ -293,12 +234,11 @@ rdpInputMouse(rdpPtr dev, int msg,
 static int
 rdpmouseControl(DeviceIntPtr device, int what)
 {
-    BYTE map[NBUTTONS + 1]; /* Indexed from 1 */
+    BYTE map[9];
     DevicePtr pDev;
-    Atom btn_labels[NBUTTONS];
-    Atom axes_labels[NAXES];
+    Atom btn_labels[9];
+    Atom axes_labels[2];
     rdpPtr dev;
-    int i;
 
     LLOGLN(0, ("rdpmouseControl: what %d", what));
     pDev = (DevicePtr)device;
@@ -307,10 +247,15 @@ rdpmouseControl(DeviceIntPtr device, int what)
     {
         case DEVICE_INIT:
             rdpmouseDeviceInit();
-            for (i = 0 ; i <= NBUTTONS; ++i) /* element 0 not used */
-            {
-                map[i] = i;
-            }
+            map[0] = 0;
+            map[1] = 1;
+            map[2] = 2;
+            map[3] = 3;
+            map[4] = 4;
+            map[5] = 5;
+            map[6] = 6;
+            map[7] = 7;
+            map[8] = 8;
 
             btn_labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
             btn_labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
@@ -324,24 +269,11 @@ rdpmouseControl(DeviceIntPtr device, int what)
 
             axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_X);
             axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_Y);
-            axes_labels[2] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_VSCROLL);
-            axes_labels[3] = XIGetKnownProperty(AXIS_LABEL_PROP_REL_HSCROLL);
 
-            InitPointerDeviceStruct(pDev, map, NBUTTONS, btn_labels, rdpmouseCtrl,
-                                    GetMotionHistorySize(), NAXES, axes_labels);
-
+            InitPointerDeviceStruct(pDev, map, 9, btn_labels, rdpmouseCtrl,
+                                    GetMotionHistorySize(), 2, axes_labels);
             dev = rdpGetDevFromScreen(NULL);
             dev->pointer.device = device;
-
-            // Initialize scroll valuators
-            xf86InitValuatorAxisStruct(device, 2, axes_labels[2]
-                                       , 0, -1, 0, 0, 0, Relative);
-            xf86InitValuatorAxisStruct(device, 3, axes_labels[3]
-                                       , 0, -1, 0, 0, 0, Relative);
-
-            SetScrollValuator(device, 2, SCROLL_TYPE_VERTICAL, 10, 0);
-            SetScrollValuator(device, 3, SCROLL_TYPE_HORIZONTAL, 10, 0);
-
             rdpRegisterInputCallback(1, rdpInputMouse);
             break;
         case DEVICE_ON:
@@ -363,7 +295,6 @@ rdpmouseControl(DeviceIntPtr device, int what)
     }
 
     return Success;
-#undef NBUTTONS
 }
 
 #if XORG_VERSION_CURRENT < XORG_VERSION_NUMERIC(1, 9, 0, 1, 0)
@@ -378,7 +309,7 @@ rdpmousePreInit(InputDriverPtr drv, IDevPtr dev, int flags)
     InputInfoPtr info;
 
     LLOGLN(0, ("rdpmousePreInit: drv %p dev %p, flags 0x%x",
-               drv, dev, flags));
+           drv, dev, flags));
     info = xf86AllocateInput(drv, 0);
     info->name = dev->identifier;
     info->device_control = rdpmouseControl;
@@ -401,7 +332,7 @@ static int
 rdpmousePreInit(InputDriverPtr drv, InputInfoPtr info, int flags)
 {
     LLOGLN(0, ("rdpmousePreInit: drv %p info %p, flags 0x%x",
-               drv, info, flags));
+           drv, info, flags));
     info->device_control = rdpmouseControl;
     info->type_name = g_Mouse_str;
     return 0;
@@ -414,7 +345,7 @@ static void
 rdpmouseUnInit(InputDriverPtr drv, InputInfoPtr info, int flags)
 {
     LLOGLN(0, ("rdpmouseUnInit: drv %p info %p, flags 0x%x",
-               drv, info, flags));
+           drv, info, flags));
     rdpUnregisterInputCallback(rdpInputMouse);
 }
 

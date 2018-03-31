@@ -90,6 +90,8 @@ static char g_Keyboard_str[] = "Keyboard";
 
 static char g_xrdp_keyb_name[] = XRDP_KEYB_NAME;
 
+static OsTimerPtr g_kbtimer = 0;
+
 static KeySym g_kbdMap[] =
 {
     NoSymbol,        NoSymbol,        /* 8 */
@@ -604,30 +606,16 @@ rdpkeybBell(int volume, DeviceIntPtr pDev, pointer ctrl, int cls)
 
 /******************************************************************************/
 static CARD32
-rdpInDeferredRepeatCallback(OsTimerPtr timer, CARD32 now, pointer arg)
+rdpInDeferredUpdateCallback(OsTimerPtr timer, CARD32 now, pointer arg)
 {
     DeviceIntPtr pDev;
-    DeviceIntPtr it;
-    Bool found;
 
-    LLOGLN(0, ("rdpInDeferredRepeatCallback:"));
-    TimerFree(timer);
+    LLOGLN(0, ("rdpInDeferredUpdateCallback:"));
     pDev = (DeviceIntPtr) arg;
-    found = FALSE;
-    it = inputInfo.devices;
-    while (it != NULL)
-    {
-        if (it == pDev)
-        {
-            found = TRUE;
-            break;
-        }
-        it = it->next;
-    }
-    if (found)
-    {
-        XkbSetRepeatKeys(pDev, -1, AutoRepeatModeOff);
-    }
+    /* our keyboard device */
+    XkbSetRepeatKeys(pDev, -1, AutoRepeatModeOff);
+    /* the main one for the server */
+    XkbSetRepeatKeys(inputInfo.keyboard, -1, AutoRepeatModeOff);
     return 0;
 }
 
@@ -662,7 +650,8 @@ rdpkeybChangeKeyboardControl(DeviceIntPtr pDev, KeybdCtrl *ctrl)
             LLOGLN(0, ("rdpkeybChangeKeyboardControl: autoRepeat on"));
             /* schedule to turn off the autorepeat after 100 ms so any app
              * polling it will be happy it's on */
-            TimerSet(NULL, 0, 100, rdpInDeferredRepeatCallback, pDev);
+            g_kbtimer = TimerSet(g_kbtimer, 0, 100,
+                                 rdpInDeferredUpdateCallback, pDev);
         }
         else
         {

@@ -83,10 +83,6 @@ rdpTrapezoids(CARD8 op, PicturePtr pSrc, PicturePtr pDst,
     box.x2 += pDst->pDrawable->x;
     box.y2 += pDst->pDrawable->y;
     rdpRegionInit(&reg, &box, 0);
-    if (pDst->pCompositeClip != NULL)
-    {
-        rdpRegionIntersect(&reg, pDst->pCompositeClip, &reg);
-    }
     ps = GetPictureScreen(pScreen);
     /* do original call */
     rdpTrapezoidsOrg(ps, dev, op, pSrc, pDst, maskFormat, xSrc, ySrc,

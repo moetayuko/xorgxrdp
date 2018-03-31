@@ -14,23 +14,8 @@ Copyright: 2014, Laxmikant Rashinkar
   2014-2016, Jay Sorg
 License: Expat
 
-Files: module/rdpCompositeRects.c
- module/rdpCompositeRects.h
- module/rdpTriangles.c
- module/rdpTriangles.h
- xrdpdev/xrdpdri2.c
- xrdpdev/xrdpdri2.h
- xrdpdev/xrdpdri3.c
- xrdpdev/xrdpdri3.h
-Copyright: 2018, Jay Sorg
-License: Expat
-
-Files: module/rdpEgl.c
- module/rdpEgl.h
-Copyright: 2018-2019, Jay Sorg
-License: Expat
-
-Files: Makefile.am
+Files: COPYING
+ Makefile.am
  bootstrap
  configure.ac
  m4/nasm.m4
@@ -199,11 +184,11 @@ License: Expat
 Files: debian/*
 Copyright: Dominik George <nik@naturalnet.de>
  Thorsten Glaser <tg@mirbsd.org>
- Alex Myczko <tar@debian.org>
 License: MirOS
 
 Files: Makefile.in
  aclocal.m4
+ Makefile.in
  config_ac-h.in
  m4/.gitignore
  module/Makefile.in

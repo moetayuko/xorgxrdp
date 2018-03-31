@@ -3,14 +3,7 @@
 # Test that Xorg can load the compiled modules
 
 # X server to run
-if [ -z "$XORG" ]; then
-    if [ -x /usr/lib/xorg/Xorg ]; then
-        # Don't use the Ubuntu wrapped server
-        XORG=/usr/lib/xorg/Xorg
-    else
-        XORG=Xorg
-    fi
-fi
+: ${XORG=Xorg}
 
 # Client to connect to Xorg
 : ${XCLIENT=xdpyinfo}
@@ -43,7 +36,7 @@ XORG_ARGS="$@"
 
 
 # If the X server has setuid bit, make a local copy
-XORG_FULL=`command -v $XORG`
+XORG_FULL=`which $XORG`
 if test -u $XORG_FULL; then
   XORG=`pwd`/Xorg.no-setuid
   echo "$XORG_FULL has setuid bit set, will use $XORG"
@@ -65,12 +58,6 @@ moduledir="$top_builddir/xrdpkeyb/.libs,$moduledir"
 moduledir="$top_builddir/xrdpmouse/.libs,$moduledir"
 
 # Run Xorg with compiled modules as a background task
-#
-# [Linux]   Set LD_BIND_NOW (see dlopen(3)) to disable lazy symbol
-#           resolution so we check the modules for undefined symbols.
-# [FreeBSD] Setting LD_BIND_NOW does not affect the operation of
-#           dlopen()
-LD_BIND_NOW=1 \
 $XORG \
   -modulepath $moduledir \
   -config $top_srcdir/xrdpdev/xorg.conf \
