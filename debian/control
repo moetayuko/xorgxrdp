@@ -17,6 +17,7 @@ Build-Depends:
  nasm [amd64 hurd-i386 i386 kfreebsd-amd64 kfreebsd-i386],
  pkg-config,
  x11-utils,
+ xrdp (>= 0.9.0)
  xserver-xorg-core,
  xserver-xorg-dev,
 Standards-Version: 4.1.3
