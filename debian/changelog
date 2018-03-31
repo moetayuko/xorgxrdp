@@ -1,7 +1,5 @@
 xorgxrdp (1:0.2.6-1) unstable; urgency=medium
 
-  * Initial release (Closes: #)
-    + Previously built from the xrdp source package,
-      thus no ITP bug.
+  * Split package from xrdp source.
 
  -- Dominik George <natureshadow@debian.org>  Sat, 31 Mar 2018 18:44:01 +0200
