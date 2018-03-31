@@ -1,4 +1,4 @@
-xorgrdp (1:0.2.6-1) unstable; urgency=medium
+xorgxrdp (1:0.2.6-1) unstable; urgency=medium
 
   * Initial release (Closes: #)
     + Previously built from the xrdp source package,
