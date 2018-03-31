@@ -21,7 +21,6 @@ CONFIGURE_ARGS:=	--build=${DEB_BUILD_GNU_TYPE} \
 			--libexecdir=\$${prefix}/lib/${DEB_HOST_MULTIARCH} \
 			--disable-maintainer-mode \
 			--disable-dependency-tracking \
-			--with-socketdir=/var/run/xrdp/sockdir
 
 ifneq (${DEB_BUILD_GNU_TYPE},${DEB_HOST_GNU_TYPE})
 CONFIGURE_ARGS+=	--host=${DEB_HOST_GNU_TYPE}
@@ -30,11 +29,6 @@ endif
 ifeq (x32,${DEB_HOST_ARCH})
 # autodetection fails on x32 (wrongly recognised as amd64)
 CONFIGURE_ARGS+=	--without-simd
-endif
-
-ifeq (hurd,${DEB_HOST_ARCH_OS})
-# fuse_lowlevel.h is not yet usable
-CONFIGURE_ARGS+=	--disable-fuse
 endif
 
 %:
