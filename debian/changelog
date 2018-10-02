@@ -1,3 +1,9 @@
+xorgxrdp (1:0.2.8-1~bpo9+1) stretch-backports; urgency=medium
+
+  * Rebuild for stretch-backports.
+
+ -- Dominik George <natureshadow@debian.org>  Tue, 02 Oct 2018 14:00:38 +0200
+
 xorgxrdp (1:0.2.8-1) unstable; urgency=medium
 
   * New upstream version.
