@@ -1,3 +1,10 @@
+xorgxrdp (1:0.2.9-1) unstable; urgency=medium
+
+  * New upstream version.
+  * Bump Standards-Version, no changes needed.
+
+ -- Dominik George <natureshadow@debian.org>  Sun, 13 Jan 2019 13:31:28 +0100
+
 xorgxrdp (1:0.2.8-1) unstable; urgency=medium
 
   * New upstream version.
