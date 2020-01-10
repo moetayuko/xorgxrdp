@@ -11,6 +11,8 @@ Build-Depends:
  autoconf (>= 2.59),
  automake (>= 1.6),
  debhelper-compat (= 12),
+ libepoxy-dev,
+ libgbm-dev,
  nasm [amd64 hurd-i386 i386 kfreebsd-amd64 kfreebsd-i386],
  pkg-config,
  x11-utils,

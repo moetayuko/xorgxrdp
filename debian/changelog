@@ -3,7 +3,7 @@ xorgxrdp (1:0.2.12-1) unstable; urgency=low
   * New upstream version
   * Bump Policy & debhelper
 
- -- Thorsten Glaser <tg@mirbsd.de>  Fri, 10 Jan 2020 22:35:07 +0100
+ -- Thorsten Glaser <tg@mirbsd.de>  Fri, 10 Jan 2020 22:46:54 +0100
 
 xorgxrdp (1:0.2.9-1) unstable; urgency=medium
 
