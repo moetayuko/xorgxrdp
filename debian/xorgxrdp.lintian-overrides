@@ -1,5 +1,2 @@
 # there is none
 xorgxrdp: no-upstream-changelog
-
-# correct for X.org modules
-xorgxrdp: unstripped-static-library

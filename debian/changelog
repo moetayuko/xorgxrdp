@@ -4,7 +4,7 @@ xorgxrdp (1:0.2.12-1) unstable; urgency=low
   * Bump Policy & debhelper
   * Remove .la and unused .a from the binary packages
 
- -- Thorsten Glaser <tg@mirbsd.de>  Fri, 10 Jan 2020 23:15:38 +0100
+ -- Thorsten Glaser <tg@mirbsd.de>  Fri, 10 Jan 2020 23:23:06 +0100
 
 xorgxrdp (1:0.2.9-1) unstable; urgency=medium
 
