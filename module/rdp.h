@@ -41,6 +41,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define XRDP_KEYB_NAME "XRDPKEYB"
 #define XRDP_VERSION 1000
 
+#define RDP_MAX_TILES 4096
+
 #define COLOR8(r, g, b) \
     ((((r) >> 5) << 0)  | (((g) >> 5) << 3) | (((b) >> 6) << 6))
 #define COLOR15(r, g, b) \
@@ -201,7 +203,9 @@ struct _rdpCounts
     CARD32 rdpCompositeCallCount;
     CARD32 rdpCopyWindowCallCount; /* 22 */
     CARD32 rdpTrapezoidsCallCount;
-    CARD32 callCount[64 - 23];
+    CARD32 rdpTrianglesCallCount;
+    CARD32 rdpCompositeRectsCallCount;
+    CARD32 callCount[64 - 25];
 };
 
 typedef int (*yuv_to_rgb32_proc)(const uint8_t *yuvs, int width, int height, int *rgbs);
@@ -242,6 +246,9 @@ struct _rdpRec
     CompositeProcPtr Composite;
     GlyphsProcPtr Glyphs;
     TrapezoidsProcPtr Trapezoids;
+    CreateScreenResourcesProcPtr CreateScreenResources;
+    TrianglesProcPtr Triangles;
+    CompositeRectsProcPtr CompositeRects;
 
     /* keyboard and mouse */
     miPointerScreenFuncPtr pCursorFuncs;
@@ -263,6 +270,7 @@ struct _rdpRec
     RROutputGetPropertyProcPtr rrOutputGetProperty;
     RRGetPanningProcPtr rrGetPanning;
     RRSetPanningProcPtr rrSetPanning;
+    int allow_screen_resize;
 
     int listen_sck;
     char uds_data[256];
@@ -282,11 +290,11 @@ struct _rdpRec
 
     OsTimerPtr disconnectTimer;
     int disconnect_timeout_s;
-    int disconnect_time_ms;
+    CARD32 disconnect_time_ms;
 
     OsTimerPtr idleDisconnectTimer;
     int idle_disconnect_timeout_s;
-    time_t last_event_time;
+    CARD32 last_event_time_ms;
 
     int conNumber;
 
@@ -305,13 +313,17 @@ struct _rdpRec
     copy_box_dst2_proc a8r8g8b8_to_nv12_box;
 
     /* multimon */
-    int extra_outputs;
-    RRCrtcPtr crtc[16];
-    RROutputPtr output[16];
     struct monitor_info minfo[16]; /* client monitor data */
     int doMultimon;
     int monitorCount;
-
+    /* glamor */
+    Bool glamor;
+    PixmapPtr screenSwPixmap;
+    void *xvPutImage;
+    /* dri */
+    int fd;
+    /* egl */
+    void *egl;
 };
 typedef struct _rdpRec rdpRec;
 typedef struct _rdpRec * rdpPtr;
