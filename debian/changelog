@@ -1,3 +1,9 @@
+xorgxrdp (1:0.2.12-1) unstable; urgency=low
+
+  * New upstream version
+
+ -- Thorsten Glaser <tg@mirbsd.de>  Fri, 10 Jan 2020 22:21:42 +0100
+
 xorgxrdp (1:0.2.9-1) unstable; urgency=medium
 
   * New upstream version.
