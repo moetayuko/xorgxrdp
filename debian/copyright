@@ -30,8 +30,7 @@ Files: module/rdpEgl.c
 Copyright: 2018-2019, Jay Sorg
 License: Expat
 
-Files: COPYING
- Makefile.am
+Files: Makefile.am
  bootstrap
  configure.ac
  m4/nasm.m4
