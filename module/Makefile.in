@@ -95,6 +95,10 @@ host_triplet = @host@
 @WITH_SIMD_X86_TRUE@am__append_4 = -DSIMD_USE_ACCEL=1
 @WITH_SIMD_X86_TRUE@am__append_5 = x86
 @WITH_SIMD_X86_TRUE@am__append_6 = x86/libxorgxrdp-asm.la
+@WITH_GLAMOR_TRUE@am__append_7 = -DXORGXRDP_GLAMOR -DGLAMOR_FOR_XORG
+@WITH_GLAMOR_TRUE@am__append_8 = rdpEgl.c
+@WITH_GLAMOR_TRUE@am__append_9 = rdpEgl.h
+@WITH_GLAMOR_TRUE@am__append_10 = -lepoxy
 subdir = module
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_append_compile_flags.m4 \
@@ -109,7 +113,7 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/ax_append_compile_flags.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
-DIST_COMMON = $(srcdir)/Makefile.am $(noinst_HEADERS) \
+DIST_COMMON = $(srcdir)/Makefile.am $(am__noinst_HEADERS_DIST) \
 	$(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config_ac.h
@@ -144,7 +148,22 @@ am__uninstall_files_from_dir = { \
   }
 am__installdirs = "$(DESTDIR)$(libxorgxrdp_ladir)"
 LTLIBRARIES = $(libxorgxrdp_la_LTLIBRARIES)
-libxorgxrdp_la_DEPENDENCIES = $(ASMLIB)
+am__DEPENDENCIES_1 =
+am__DEPENDENCIES_2 = $(am__DEPENDENCIES_1)
+libxorgxrdp_la_DEPENDENCIES = $(ASMLIB) $(am__DEPENDENCIES_2)
+am__libxorgxrdp_la_SOURCES_DIST = rdpDraw.c rdpPri.c rdpGC.c \
+	rdpFillSpans.c rdpSetSpans.c rdpPutImage.c rdpCopyArea.c \
+	rdpCopyPlane.c rdpPolyPoint.c rdpPolylines.c rdpPolySegment.c \
+	rdpPolyRectangle.c rdpPolyArc.c rdpFillPolygon.c \
+	rdpPolyFillRect.c rdpPolyFillArc.c rdpPolyText8.c \
+	rdpPolyText16.c rdpImageText8.c rdpImageText16.c \
+	rdpImageGlyphBlt.c rdpPolyGlyphBlt.c rdpPushPixels.c \
+	rdpCursor.c rdpMain.c rdpRandR.c rdpMisc.c rdpReg.c \
+	rdpComposite.c rdpGlyphs.c rdpPixmap.c rdpInput.c \
+	rdpClientCon.c rdpCapture.c rdpTrapezoids.c rdpTriangles.c \
+	rdpCompositeRects.c rdpXv.c rdpSimd.c rdpEgl.c
+@WITH_GLAMOR_TRUE@am__objects_1 = rdpEgl.lo
+am__objects_2 = $(am__objects_1)
 am_libxorgxrdp_la_OBJECTS = rdpDraw.lo rdpPri.lo rdpGC.lo \
 	rdpFillSpans.lo rdpSetSpans.lo rdpPutImage.lo rdpCopyArea.lo \
 	rdpCopyPlane.lo rdpPolyPoint.lo rdpPolylines.lo \
@@ -155,7 +174,8 @@ am_libxorgxrdp_la_OBJECTS = rdpDraw.lo rdpPri.lo rdpGC.lo \
 	rdpPushPixels.lo rdpCursor.lo rdpMain.lo rdpRandR.lo \
 	rdpMisc.lo rdpReg.lo rdpComposite.lo rdpGlyphs.lo rdpPixmap.lo \
 	rdpInput.lo rdpClientCon.lo rdpCapture.lo rdpTrapezoids.lo \
-	rdpXv.lo rdpSimd.lo
+	rdpTriangles.lo rdpCompositeRects.lo rdpXv.lo rdpSimd.lo \
+	$(am__objects_2)
 libxorgxrdp_la_OBJECTS = $(am_libxorgxrdp_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -182,8 +202,9 @@ depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
 am__depfiles_remade = ./$(DEPDIR)/rdpCapture.Plo \
 	./$(DEPDIR)/rdpClientCon.Plo ./$(DEPDIR)/rdpComposite.Plo \
-	./$(DEPDIR)/rdpCopyArea.Plo ./$(DEPDIR)/rdpCopyPlane.Plo \
-	./$(DEPDIR)/rdpCursor.Plo ./$(DEPDIR)/rdpDraw.Plo \
+	./$(DEPDIR)/rdpCompositeRects.Plo ./$(DEPDIR)/rdpCopyArea.Plo \
+	./$(DEPDIR)/rdpCopyPlane.Plo ./$(DEPDIR)/rdpCursor.Plo \
+	./$(DEPDIR)/rdpDraw.Plo ./$(DEPDIR)/rdpEgl.Plo \
 	./$(DEPDIR)/rdpFillPolygon.Plo ./$(DEPDIR)/rdpFillSpans.Plo \
 	./$(DEPDIR)/rdpGC.Plo ./$(DEPDIR)/rdpGlyphs.Plo \
 	./$(DEPDIR)/rdpImageGlyphBlt.Plo \
@@ -200,7 +221,7 @@ am__depfiles_remade = ./$(DEPDIR)/rdpCapture.Plo \
 	./$(DEPDIR)/rdpPutImage.Plo ./$(DEPDIR)/rdpRandR.Plo \
 	./$(DEPDIR)/rdpReg.Plo ./$(DEPDIR)/rdpSetSpans.Plo \
 	./$(DEPDIR)/rdpSimd.Plo ./$(DEPDIR)/rdpTrapezoids.Plo \
-	./$(DEPDIR)/rdpXv.Plo
+	./$(DEPDIR)/rdpTriangles.Plo ./$(DEPDIR)/rdpXv.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -221,7 +242,7 @@ am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(libxorgxrdp_la_SOURCES)
-DIST_SOURCES = $(libxorgxrdp_la_SOURCES)
+DIST_SOURCES = $(am__libxorgxrdp_la_SOURCES_DIST)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
 	ctags-recursive dvi-recursive html-recursive info-recursive \
 	install-data-recursive install-dvi-recursive \
@@ -235,6 +256,17 @@ am__can_run_installinfo = \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
+am__noinst_HEADERS_DIST = rdpCapture.h rdpClientCon.h rdpComposite.h \
+	rdpCopyArea.h rdpCopyPlane.h rdpCursor.h rdpDraw.h \
+	rdpFillPolygon.h rdpFillSpans.h rdpGC.h rdpGlyphs.h rdp.h \
+	rdpImageGlyphBlt.h rdpImageText16.h rdpImageText8.h rdpInput.h \
+	rdpMain.h rdpMisc.h rdpPixmap.h rdpPolyArc.h rdpPolyFillArc.h \
+	rdpPolyFillRect.h rdpPolyGlyphBlt.h rdpPolylines.h \
+	rdpPolyPoint.h rdpPolyRectangle.h rdpPolySegment.h \
+	rdpPolyText16.h rdpPolyText8.h rdpPri.h rdpPushPixels.h \
+	rdpPutImage.h rdpRandR.h rdpReg.h rdpSetSpans.h rdpSimd.h \
+	rdpTrapezoids.h rdpTriangles.h rdpCompositeRects.h rdpXv.h \
+	amd64/funcs_amd64.h x86/funcs_x86.h rdpEgl.h
 HEADERS = $(noinst_HEADERS)
 RECURSIVE_CLEAN_TARGETS = mostlyclean-recursive clean-recursive	\
   distclean-recursive maintainer-clean-recursive
@@ -360,6 +392,8 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
 XORG_SERVER_CFLAGS = @XORG_SERVER_CFLAGS@
+XORG_SERVER_GLAMOR_CFLAGS = @XORG_SERVER_GLAMOR_CFLAGS@
+XORG_SERVER_GLAMOR_LIBS = @XORG_SERVER_GLAMOR_LIBS@
 XORG_SERVER_LIBS = @XORG_SERVER_LIBS@
 XRDP_CFLAGS = @XRDP_CFLAGS@
 XRDP_LIBS = @XRDP_LIBS@
@@ -420,9 +454,12 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 EXTRA_DIST = common.asm nasm_lt.sh
-EXTRA_FLAGS = $(am__append_1) $(am__append_4)
+EXTRA_FLAGS = $(am__append_1) $(am__append_4) $(am__append_7)
+EXTRA_SOURCES = $(am__append_8)
+EXTRA_HEADERS = $(am__append_9)
 SUBDIRS = $(am__append_2) $(am__append_5)
 ASMLIB = $(am__append_3) $(am__append_6)
+EGLLIB = $(am__append_10)
 AM_CFLAGS = \
   $(XORG_SERVER_CFLAGS) \
   $(XRDP_CFLAGS) \
@@ -470,9 +507,12 @@ noinst_HEADERS = \
   rdpSetSpans.h \
   rdpSimd.h \
   rdpTrapezoids.h \
+  rdpTriangles.h \
+  rdpCompositeRects.h \
   rdpXv.h \
   amd64/funcs_amd64.h \
-  x86/funcs_x86.h
+  x86/funcs_x86.h \
+  $(EXTRA_HEADERS)
 
 libxorgxrdp_la_LTLIBRARIES = libxorgxrdp.la
 libxorgxrdp_la_LDFLAGS = -module -avoid-version
@@ -484,9 +524,10 @@ rdpFillPolygon.c rdpPolyFillRect.c rdpPolyFillArc.c rdpPolyText8.c \
 rdpPolyText16.c rdpImageText8.c rdpImageText16.c rdpImageGlyphBlt.c \
 rdpPolyGlyphBlt.c rdpPushPixels.c rdpCursor.c rdpMain.c rdpRandR.c \
 rdpMisc.c rdpReg.c rdpComposite.c rdpGlyphs.c rdpPixmap.c rdpInput.c \
-rdpClientCon.c rdpCapture.c rdpTrapezoids.c rdpXv.c rdpSimd.c
+rdpClientCon.c rdpCapture.c rdpTrapezoids.c rdpTriangles.c \
+rdpCompositeRects.c rdpXv.c rdpSimd.c $(EXTRA_SOURCES)
 
-libxorgxrdp_la_LIBADD = $(ASMLIB)
+libxorgxrdp_la_LIBADD = $(ASMLIB) $(EGLLIB)
 all: all-recursive
 
 .SUFFIXES:
@@ -568,10 +609,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpCapture.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpClientCon.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpComposite.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpCompositeRects.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpCopyArea.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpCopyPlane.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpCursor.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpDraw.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpEgl.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpFillPolygon.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpFillSpans.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpGC.Plo@am__quote@ # am--include-marker
@@ -601,6 +644,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpSetSpans.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpSimd.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpTrapezoids.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpTriangles.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/rdpXv.Plo@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
@@ -840,10 +884,12 @@ distclean: distclean-recursive
 		-rm -f ./$(DEPDIR)/rdpCapture.Plo
 	-rm -f ./$(DEPDIR)/rdpClientCon.Plo
 	-rm -f ./$(DEPDIR)/rdpComposite.Plo
+	-rm -f ./$(DEPDIR)/rdpCompositeRects.Plo
 	-rm -f ./$(DEPDIR)/rdpCopyArea.Plo
 	-rm -f ./$(DEPDIR)/rdpCopyPlane.Plo
 	-rm -f ./$(DEPDIR)/rdpCursor.Plo
 	-rm -f ./$(DEPDIR)/rdpDraw.Plo
+	-rm -f ./$(DEPDIR)/rdpEgl.Plo
 	-rm -f ./$(DEPDIR)/rdpFillPolygon.Plo
 	-rm -f ./$(DEPDIR)/rdpFillSpans.Plo
 	-rm -f ./$(DEPDIR)/rdpGC.Plo
@@ -873,6 +919,7 @@ distclean: distclean-recursive
 	-rm -f ./$(DEPDIR)/rdpSetSpans.Plo
 	-rm -f ./$(DEPDIR)/rdpSimd.Plo
 	-rm -f ./$(DEPDIR)/rdpTrapezoids.Plo
+	-rm -f ./$(DEPDIR)/rdpTriangles.Plo
 	-rm -f ./$(DEPDIR)/rdpXv.Plo
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
@@ -922,10 +969,12 @@ maintainer-clean: maintainer-clean-recursive
 		-rm -f ./$(DEPDIR)/rdpCapture.Plo
 	-rm -f ./$(DEPDIR)/rdpClientCon.Plo
 	-rm -f ./$(DEPDIR)/rdpComposite.Plo
+	-rm -f ./$(DEPDIR)/rdpCompositeRects.Plo
 	-rm -f ./$(DEPDIR)/rdpCopyArea.Plo
 	-rm -f ./$(DEPDIR)/rdpCopyPlane.Plo
 	-rm -f ./$(DEPDIR)/rdpCursor.Plo
 	-rm -f ./$(DEPDIR)/rdpDraw.Plo
+	-rm -f ./$(DEPDIR)/rdpEgl.Plo
 	-rm -f ./$(DEPDIR)/rdpFillPolygon.Plo
 	-rm -f ./$(DEPDIR)/rdpFillSpans.Plo
 	-rm -f ./$(DEPDIR)/rdpGC.Plo
@@ -955,6 +1004,7 @@ maintainer-clean: maintainer-clean-recursive
 	-rm -f ./$(DEPDIR)/rdpSetSpans.Plo
 	-rm -f ./$(DEPDIR)/rdpSimd.Plo
 	-rm -f ./$(DEPDIR)/rdpTrapezoids.Plo
+	-rm -f ./$(DEPDIR)/rdpTriangles.Plo
 	-rm -f ./$(DEPDIR)/rdpXv.Plo
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic

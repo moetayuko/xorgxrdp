@@ -210,7 +210,7 @@ rdpClientConGotConnection(ScreenPtr pScreen, rdpPtr dev)
     LLOGLN(0, ("rdpClientConGotConnection:"));
     clientCon = g_new0(rdpClientCon, 1);
     clientCon->dev = dev;
-    dev->last_event_time = time(0);
+    dev->last_event_time_ms = GetTimeInMillis();
     dev->do_dirty_ons = 1;
 
     make_stream(clientCon->in_s);
@@ -253,7 +253,7 @@ rdpClientConGotConnection(ScreenPtr pScreen, rdpPtr dev)
     {
         LLOGLN(0, ("rdpClientConGetConnection: "
                    "engaging idle timer, timeout [%d] sec", dev->idle_disconnect_timeout_s));
-        dev->idleDisconnectTimer = TimerSet(dev->idleDisconnectTimer, 0, 1000 * 1,
+        dev->idleDisconnectTimer = TimerSet(dev->idleDisconnectTimer, 0, dev->idle_disconnect_timeout_s * 1000,
                                             rdpDeferredIdleDisconnectCallback, dev);
     }
     else
@@ -274,7 +274,6 @@ rdpClientConGotConnection(ScreenPtr pScreen, rdpPtr dev)
 static CARD32
 rdpDeferredDisconnectCallback(OsTimerPtr timer, CARD32 now, pointer arg)
 {
-    CARD32 lnow_ms;
     rdpPtr dev;
 
     dev = (rdpPtr) arg;
@@ -297,8 +296,7 @@ rdpDeferredDisconnectCallback(OsTimerPtr timer, CARD32 now, pointer arg)
     {
         LLOGLN(10, ("rdpDeferredDisconnectCallback: not connected"));
     }
-    lnow_ms = GetTimeInMillis();
-    if (lnow_ms - dev->disconnect_time_ms > dev->disconnect_timeout_s * 1000)
+    if (now - dev->disconnect_time_ms > dev->disconnect_timeout_s * 1000)
     {
         LLOGLN(0, ("rdpDeferredDisconnectCallback: "
                    "disconnect timeout exceeded, exiting"));
@@ -317,26 +315,16 @@ rdpDeferredIdleDisconnectCallback(OsTimerPtr timer, CARD32 now, pointer arg)
     LLOGLN(10, ("rdpDeferredIdleDisconnectCallback:"));
 
     rdpPtr dev;
-    time_t current_time;
 
     dev = (rdpPtr) arg;
-    current_time = time(0);
 
-    if (dev->idle_disconnect_timeout_s <= 0)
-    {
-        /* should not reach here */
-        LLOGLN(0, ("rdpDeferredIdleDisconnectCallback: timeout set to non-positive value, disengaging timer"));
-        goto cancel_timer;
-    }
+    CARD32 millis_since_last_event;
 
-    if (dev->last_event_time > now)
-    {
-        LLOGLN(0, ("rdpDeferredIdleDisconnectCallback: time has gone backwards, resetting"));
-        dev->last_event_time = current_time;
-        goto next_timer;
-    }
+    /* how many millis was the last event ago? */
+    millis_since_last_event = now - dev->last_event_time_ms;
 
-    if (current_time - dev->last_event_time > dev->idle_disconnect_timeout_s)
+    /* we MUST compare to equal otherwise we could restart the idle timer with 0! */
+    if (millis_since_last_event >= (dev->idle_disconnect_timeout_s * 1000))
     {
         LLOGLN(0, ("rdpDeferredIdleDisconnectCallback: session has been idle for %d seconds, disconnecting",
                     dev->idle_disconnect_timeout_s));
@@ -348,19 +336,17 @@ rdpDeferredIdleDisconnectCallback(OsTimerPtr timer, CARD32 now, pointer arg)
         }
 
         LLOGLN(0, ("rdpDeferredIdleDisconnectCallback: disconnected idle session"));
-        goto cancel_timer;
+
+        TimerCancel(dev->idleDisconnectTimer);
+        TimerFree(dev->idleDisconnectTimer);
+        dev->idleDisconnectTimer = NULL;
+        LLOGLN(0, ("rdpDeferredIdleDisconnectCallback: idle timer disengaged"));
+        return 0;
     }
 
-next_timer:
-    dev->idleDisconnectTimer = TimerSet(dev->idleDisconnectTimer, 0, 1000 * 1,
+    /* restart the idle timer with last_event + idle timeout */
+    dev->idleDisconnectTimer = TimerSet(dev->idleDisconnectTimer, 0, (dev->idle_disconnect_timeout_s * 1000) - millis_since_last_event,
                                         rdpDeferredIdleDisconnectCallback, dev);
-    return 0;
-
-cancel_timer:
-    TimerCancel(dev->idleDisconnectTimer);
-    TimerFree(dev->idleDisconnectTimer);
-    dev->idleDisconnectTimer = NULL;
-    LLOGLN(0, ("rdpDeferredIdleDisconnectCallback: idle timer disengaged"));
     return 0;
 }
 /*****************************************************************************/
@@ -420,6 +406,10 @@ rdpClientConDisconnect(rdpPtr dev, rdpClientCon *clientCon)
     }
     free_stream(clientCon->out_s);
     free_stream(clientCon->in_s);
+    if (clientCon->shmemptr != NULL)
+    {
+        shmdt(clientCon->shmemptr);
+    }
     free(clientCon);
     return 0;
 }
@@ -756,7 +746,9 @@ rdpClientConProcessScreenSizeMsg(rdpPtr dev, rdpClientCon *clientCon,
 
     if ((dev->width != width) || (dev->height != height))
     {
+        dev->allow_screen_resize = 1;
         ok = RRScreenSizeSet(dev->pScreen, width, height, mmwidth, mmheight);
+        dev->allow_screen_resize = 0;
         LLOGLN(0, ("rdpClientConProcessScreenSizeMsg: RRScreenSizeSet ok=[%d]", ok));
         RRTellChanged(dev->pScreen);
     }
@@ -1077,6 +1069,35 @@ rdpClientConProcessMsgClientRegionEx(rdpPtr dev, rdpClientCon *clientCon)
 
 /******************************************************************************/
 static int
+rdpClientConProcessMsgClientSuppressOutput(rdpPtr dev, rdpClientCon *clientCon)
+{
+    int suppress;
+    int left;
+    int top;
+    int right;
+    int bottom;
+    struct stream *s;
+
+    s = clientCon->in_s;
+    in_uint32_le(s, suppress);
+    in_uint32_le(s, left);
+    in_uint32_le(s, top);
+    in_uint32_le(s, right);
+    in_uint32_le(s, bottom);
+    LLOGLN(10, ("rdpClientConProcessMsgClientSuppressOutput: "
+           "suppress %d left %d top %d right %d bottom %d",
+           suppress, left, top, right, bottom));
+    clientCon->suppress_output = suppress;
+    if (suppress == 0)
+    {
+        rdpClientConAddDirtyScreen(dev, clientCon, left, top,
+                                   right - left, bottom - top);
+    }
+    return 0;
+}
+
+/******************************************************************************/
+static int
 rdpClientConProcessMsg(rdpPtr dev, rdpClientCon *clientCon)
 {
     int msg_type;
@@ -1100,7 +1121,12 @@ rdpClientConProcessMsg(rdpPtr dev, rdpClientCon *clientCon)
         case 106: /* client region ex */
             rdpClientConProcessMsgClientRegionEx(dev, clientCon);
             break;
+        case 108: /* client suppress output */
+            rdpClientConProcessMsgClientSuppressOutput(dev, clientCon);
+            break;
         default:
+            LLOGLN(0, ("rdpClientConProcessMsg: unknown msg_type %d",
+                   msg_type));
             break;
     }
 
@@ -2397,7 +2423,12 @@ rdpDeferredUpdateCallback(OsTimerPtr timer, CARD32 now, pointer arg)
 
     LLOGLN(10, ("rdpDeferredUpdateCallback:"));
     clientCon = (rdpClientCon *) arg;
-
+    clientCon->updateScheduled = FALSE;
+    if (clientCon->suppress_output)
+    {
+        LLOGLN(10, ("rdpDeferredUpdateCallback: suppress_output set"));
+        return 0;
+    }
     if ((clientCon->rect_id > clientCon->rect_id_ack) ||
         /* do not allow captures until we have the client_info */
         clientCon->client_info.size == 0)
@@ -2408,6 +2439,7 @@ rdpDeferredUpdateCallback(OsTimerPtr timer, CARD32 now, pointer arg)
         clientCon->updateTimer = TimerSet(clientCon->updateTimer, 0, 40,
                                           rdpDeferredUpdateCallback,
                                           clientCon);
+        clientCon->updateScheduled = TRUE;
         return 0;
     }
     else
@@ -2419,7 +2451,6 @@ rdpDeferredUpdateCallback(OsTimerPtr timer, CARD32 now, pointer arg)
            "rdp_Bpp %d screen width %d screen height %d",
            clientCon->rdp_width, clientCon->rdp_height, clientCon->rdp_Bpp,
            id.width, id.height));
-    clientCon->updateScheduled = FALSE;
     if (clientCon->dev->monitorCount < 1)
     {
         dirty_extents = *rdpRegionExtents(clientCon->dirtyRegion);

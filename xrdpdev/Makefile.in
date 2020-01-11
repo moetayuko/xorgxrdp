@@ -15,6 +15,7 @@
 @SET_MAKE@
 
 
+
 VPATH = @srcdir@
 am__is_gnu_make = { \
   if test -z '$(MAKELEVEL)'; then \
@@ -89,6 +90,9 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+@WITH_GLAMOR_TRUE@am__append_1 = -DXORGXRDP_GLAMOR -DGLAMOR_FOR_XORG
+@WITH_GLAMOR_TRUE@am__append_2 = xrdpdri2.c xrdpdri3.c
+@WITH_GLAMOR_TRUE@am__append_3 = xrdpdri2.h xrdpdri3.h
 subdir = xrdpdev
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_append_compile_flags.m4 \
@@ -104,7 +108,7 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/ax_append_compile_flags.m4 \
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(dist_xrdpdevsysconf_DATA) \
-	$(am__DIST_COMMON)
+	$(am__noinst_HEADERS_DIST) $(am__DIST_COMMON)
 mkinstalldirs = $(install_sh) -d
 CONFIG_HEADER = $(top_builddir)/config_ac.h
 CONFIG_CLEAN_FILES =
@@ -140,7 +144,10 @@ am__installdirs = "$(DESTDIR)$(xrdpdev_drv_ladir)" \
 	"$(DESTDIR)$(xrdpdevsysconfdir)"
 LTLIBRARIES = $(xrdpdev_drv_la_LTLIBRARIES)
 xrdpdev_drv_la_DEPENDENCIES =
-am_xrdpdev_drv_la_OBJECTS = xrdpdev.lo
+am__xrdpdev_drv_la_SOURCES_DIST = xrdpdev.c xrdpdri2.c xrdpdri3.c
+@WITH_GLAMOR_TRUE@am__objects_1 = xrdpdri2.lo xrdpdri3.lo
+am__objects_2 = $(am__objects_1)
+am_xrdpdev_drv_la_OBJECTS = xrdpdev.lo $(am__objects_2)
 xrdpdev_drv_la_OBJECTS = $(am_xrdpdev_drv_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -165,7 +172,8 @@ am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ./$(DEPDIR)/xrdpdev.Plo
+am__depfiles_remade = ./$(DEPDIR)/xrdpdev.Plo ./$(DEPDIR)/xrdpdri2.Plo \
+	./$(DEPDIR)/xrdpdri3.Plo
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -186,13 +194,15 @@ am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(xrdpdev_drv_la_SOURCES)
-DIST_SOURCES = $(xrdpdev_drv_la_SOURCES)
+DIST_SOURCES = $(am__xrdpdev_drv_la_SOURCES_DIST)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
     *) (install-info --version) >/dev/null 2>&1;; \
   esac
 DATA = $(dist_xrdpdevsysconf_DATA)
+am__noinst_HEADERS_DIST = xrdpdri2.h xrdpdri3.h
+HEADERS = $(noinst_HEADERS)
 am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
@@ -283,6 +293,8 @@ SHELL = @SHELL@
 STRIP = @STRIP@
 VERSION = @VERSION@
 XORG_SERVER_CFLAGS = @XORG_SERVER_CFLAGS@
+XORG_SERVER_GLAMOR_CFLAGS = @XORG_SERVER_GLAMOR_CFLAGS@
+XORG_SERVER_GLAMOR_LIBS = @XORG_SERVER_GLAMOR_LIBS@
 XORG_SERVER_LIBS = @XORG_SERVER_LIBS@
 XRDP_CFLAGS = @XRDP_CFLAGS@
 XRDP_LIBS = @XRDP_LIBS@
@@ -343,18 +355,23 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 EXTRA_DIST = 
+EXTRA_FLAGS = $(am__append_1)
+EXTRA_SOURCES = $(am__append_2)
+EXTRA_HEADERS = $(am__append_3)
 AM_CFLAGS = \
   $(XORG_SERVER_CFLAGS) \
   $(XRDP_CFLAGS) \
   -DPACKAGE_VERSION_MAJOR=@package_version_major@ \
   -DPACKAGE_VERSION_MINOR=@package_version_minor@ \
   -DPACKAGE_VERSION_PATCHLEVEL=@package_version_patchlevel@ \
-  -I$(top_srcdir)/module
+  -I$(top_srcdir)/module \
+  $(EXTRA_FLAGS)
 
+noinst_HEADERS = $(EXTRA_HEADERS)
 xrdpdev_drv_la_LTLIBRARIES = xrdpdev_drv.la
 xrdpdev_drv_la_LDFLAGS = -module -avoid-version
 xrdpdev_drv_ladir = $(moduledir)/drivers
-xrdpdev_drv_la_SOURCES = xrdpdev.c
+xrdpdev_drv_la_SOURCES = xrdpdev.c $(EXTRA_SOURCES)
 xrdpdev_drv_la_LIBADD = 
 xrdpdevsysconfdir = $(sysconfdir)/X11/xrdp
 dist_xrdpdevsysconf_DATA = \
@@ -439,6 +456,8 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xrdpdev.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xrdpdri2.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xrdpdri3.Plo@am__quote@ # am--include-marker
 
 $(am__depfiles_remade):
 	@$(MKDIR_P) $(@D)
@@ -581,7 +600,7 @@ distdir-am: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(LTLIBRARIES) $(DATA)
+all-am: Makefile $(LTLIBRARIES) $(DATA) $(HEADERS)
 installdirs:
 	for dir in "$(DESTDIR)$(xrdpdev_drv_ladir)" "$(DESTDIR)$(xrdpdevsysconfdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
@@ -623,6 +642,8 @@ clean-am: clean-generic clean-libtool clean-xrdpdev_drv_laLTLIBRARIES \
 
 distclean: distclean-am
 		-rm -f ./$(DEPDIR)/xrdpdev.Plo
+	-rm -f ./$(DEPDIR)/xrdpdri2.Plo
+	-rm -f ./$(DEPDIR)/xrdpdri3.Plo
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-tags
@@ -670,6 +691,8 @@ installcheck-am:
 
 maintainer-clean: maintainer-clean-am
 		-rm -f ./$(DEPDIR)/xrdpdev.Plo
+	-rm -f ./$(DEPDIR)/xrdpdri2.Plo
+	-rm -f ./$(DEPDIR)/xrdpdri3.Plo
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 

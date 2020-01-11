@@ -1,8 +1,5 @@
 # there is none
 xorgxrdp: no-upstream-changelog
 
-# deliberate and correct
-xorgxrdp: depends-on-metapackage recommends: xorg
-
-# correct for X.org modules
-xorgxrdp: unstripped-static-library
+# false positive, even if the strncpy use is questionable it’s safe; CPPFLAGS are used
+xorgxrdp: hardening-no-fortify-functions usr/lib/xorg/modules/drivers/xrdpdev_drv.so
