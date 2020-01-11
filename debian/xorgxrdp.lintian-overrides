@@ -1,2 +1,5 @@
 # there is none
 xorgxrdp: no-upstream-changelog
+
+# false positive, even if the strncpy use is questionable it’s safe; CPPFLAGS are used
+xorgxrdp: hardening-no-fortify-functions usr/lib/xorg/modules/drivers/xrdpdev_drv.so
