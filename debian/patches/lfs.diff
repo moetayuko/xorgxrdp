@@ -5,7 +5,7 @@ Reviewed-by: Dominik George <nik@naturalnet.de>
 
 --- a/configure.ac
 +++ b/configure.ac
-@@ -13,6 +13,8 @@ AC_CONFIG_HEADERS(config_ac.h:config_ac-
+@@ -13,6 +13,8 @@
  AM_INIT_AUTOMAKE([1.11 foreign parallel-tests])
  m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
  AC_PROG_CC
@@ -14,7 +14,7 @@ Reviewed-by: Dominik George <nik@naturalnet.de>
  AC_C_CONST
  AC_PROG_LIBTOOL
  
-@@ -90,5 +92,6 @@ AC_CONFIG_FILES([Makefile
+@@ -91,5 +93,6 @@
                   xrdpmouse/Makefile
  ])
  

@@ -128,7 +128,7 @@ PtrAddEvent(rdpPointer *pointer)
         pointer->old_cursor_y = pointer->cursor_y;
     }
 
-    for (i = 0; i < 7; i++)
+    for (i = 0; i < 9; i++)
     {
         if ((pointer->button_mask ^ pointer->old_button_mask) & (1 << i))
         {
@@ -163,67 +163,83 @@ rdpInputMouse(rdpPtr dev, int msg,
     pointer = &(dev->pointer);
     switch (msg)
     {
-        case 100:
+        case WM_MOUSEMOVE:
             /* without the minus 2, strange things happen when dragging
                past the width or height */
             pointer->cursor_x = l_bound_by(param1, 0, dev->width - 2);
             pointer->cursor_y = l_bound_by(param2, 0, dev->height - 2);
             PtrAddEvent(pointer);
             break;
-        case 101:
+        case WM_LBUTTONUP:
             pointer->button_mask = pointer->button_mask & (~1);
             PtrAddEvent(pointer);
             break;
-        case 102:
+        case WM_LBUTTONDOWN:
             pointer->button_mask = pointer->button_mask | 1;
             PtrAddEvent(pointer);
             break;
-        case 103:
+        case WM_RBUTTONUP:
             pointer->button_mask = pointer->button_mask & (~4);
             PtrAddEvent(pointer);
             break;
-        case 104:
+        case WM_RBUTTONDOWN:
             pointer->button_mask = pointer->button_mask | 4;
             PtrAddEvent(pointer);
             break;
-        case 105:
+        case WM_BUTTON3UP:
             pointer->button_mask = pointer->button_mask & (~2);
             PtrAddEvent(pointer);
             break;
-        case 106:
+        case WM_BUTTON3DOWN:
             pointer->button_mask = pointer->button_mask | 2;
             PtrAddEvent(pointer);
             break;
-        case 107:
+        case WM_BUTTON4UP:
             pointer->button_mask = pointer->button_mask & (~8);
             PtrAddEvent(pointer);
             break;
-        case 108:
+        case WM_BUTTON4DOWN:
             pointer->button_mask = pointer->button_mask | 8;
             PtrAddEvent(pointer);
             break;
-        case 109:
+        case WM_BUTTON5UP:
             pointer->button_mask = pointer->button_mask & (~16);
             PtrAddEvent(pointer);
             break;
-        case 110:
+        case WM_BUTTON5DOWN:
             pointer->button_mask = pointer->button_mask | 16;
             PtrAddEvent(pointer);
             break;
-        case 111:
+        case WM_BUTTON6UP:
             pointer->button_mask = pointer->button_mask & (~32);
             PtrAddEvent(pointer);
             break;
-        case 112:
+        case WM_BUTTON6DOWN:
             pointer->button_mask = pointer->button_mask | 32;
             PtrAddEvent(pointer);
             break;
-        case 113:
+        case WM_BUTTON7UP:
             pointer->button_mask = pointer->button_mask & (~64);
             PtrAddEvent(pointer);
             break;
-        case 114:
+        case WM_BUTTON7DOWN:
             pointer->button_mask = pointer->button_mask | 64;
+            PtrAddEvent(pointer);
+            break;
+        case WM_BUTTON8UP:
+            pointer->button_mask = pointer->button_mask & (~128);
+            PtrAddEvent(pointer);
+            break;
+        case WM_BUTTON8DOWN:
+            pointer->button_mask = pointer->button_mask | 128;
+            PtrAddEvent(pointer);
+            break;
+        case WM_BUTTON9UP:
+            pointer->button_mask = pointer->button_mask & (~256);
+            PtrAddEvent(pointer);
+            break;
+        case WM_BUTTON9DOWN:
+            pointer->button_mask = pointer->button_mask | 256;
             PtrAddEvent(pointer);
             break;
     }
