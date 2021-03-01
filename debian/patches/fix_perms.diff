@@ -9,7 +9,7 @@ Forwarded: https://github.com/neutrinolabs/xorgxrdp/pull/16
 
 --- a/module/rdpClientCon.c
 +++ b/module/rdpClientCon.c
-@@ -1336,7 +1336,7 @@ rdpClientConInit(rdpPtr dev)
+@@ -1338,7 +1338,7 @@
                  return 0;
              }
          }
