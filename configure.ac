@@ -2,7 +2,7 @@
 
 AC_PREREQ(2.65)
 # package version must be x.y.z
-AC_INIT([xorgxrdp], [0.2.15], [xrdp-devel@googlegroups.com])
+AC_INIT([xorgxrdp], [0.2.17], [xrdp-devel@googlegroups.com])
 package_version_major=$(echo ${PACKAGE_VERSION}|cut -d. -f1)
 package_version_minor=$(echo ${PACKAGE_VERSION}|cut -d. -f2)
 package_version_patchlevel=$(echo ${PACKAGE_VERSION}|cut -d. -f3)
@@ -25,10 +25,13 @@ PKG_CHECK_MODULES([XORG_SERVER], [xorg-server >= 0], [],
   [AC_MSG_ERROR([please install xserver-xorg-dev, xorg-x11-server-sdk or xorg-x11-server-devel])])
 if test "x${enable_glamor}" = "xyes"; then
   PKG_CHECK_MODULES([XORG_SERVER_GLAMOR], [xorg-server >= 1.19.0])
+  PKG_CHECK_MODULES([XORG_SERVER_GBM], [gbm >= 0], [], [AC_MSG_ERROR([please install libgbm-dev or mesa-libgbm-devel])])
+  PKG_CHECK_MODULES([XORG_SERVER_EPOXY], [epoxy >= 0], [], [AC_MSG_ERROR([please install libepoxy-dev or libepoxy-devel])])
+  PKG_CHECK_MODULES([XORG_SERVER_EGL], [egl >= 0], [], [AC_MSG_ERROR([please install libegl1-mesa-dev or mesa-libEGL-devel])])
 fi
 
 if test "x$XRDP_CFLAGS" = "x"; then
-  PKG_CHECK_MODULES([XRDP], [xrdp >= 0.9.14])
+  PKG_CHECK_MODULES([XRDP], [xrdp >= 0.9.16])
   XRDP_CFLAGS=`pkg-config xrdp --cflags`
 fi
 
@@ -73,7 +76,7 @@ if test "x${with_simd}" != "xno"; then
 fi
 
 AC_ARG_ENABLE(glamor, AS_HELP_STRING([--enable-glamor],
-              [Use glamor (default: no)]),
+              [Use glamor(requires xorg server 1.19+) (default: no)]),
               [], [enable_glamor=no])
 AM_CONDITIONAL(WITH_GLAMOR, [test x$enable_glamor = xyes])
 
