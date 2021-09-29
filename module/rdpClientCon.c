@@ -33,6 +33,7 @@ Client connection to xrdp
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <limits.h>
 
 /* this should be before all X11 .h files */
 #include <xorg-server.h>
@@ -211,6 +212,8 @@ rdpClientConGotConnection(ScreenPtr pScreen, rdpPtr dev)
 
     LLOGLN(0, ("rdpClientConGotConnection:"));
     clientCon = g_new0(rdpClientCon, 1);
+    clientCon->shmemstatus = SHM_UNINITIALIZED;
+    clientCon->updateRetries = 0;
     clientCon->dev = dev;
     dev->last_event_time_ms = GetTimeInMillis();
     dev->do_dirty_ons = 1;
@@ -690,6 +693,7 @@ rdpClientConProcessScreenSizeMsg(rdpPtr dev, rdpClientCon *clientCon,
 
     LLOGLN(0, ("rdpClientConProcessScreenSizeMsg: set width %d height %d "
            "bpp %d", width, height, bpp));
+    clientCon->shmemstatus = SHM_RESIZING;
     clientCon->rdp_width = width;
     clientCon->rdp_height = height;
     clientCon->rdp_bpp = bpp;
@@ -828,6 +832,7 @@ rdpClientConProcessMsgClientInfo(rdpPtr dev, rdpClientCon *clientCon)
     int i1;
     int index;
     BoxRec box;
+    enum shared_memory_status shmemstatus = SHM_ACTIVE;
 
     LLOGLN(0, ("rdpClientConProcessMsgClientInfo:"));
     s = clientCon->in_s;
@@ -838,6 +843,14 @@ rdpClientConProcessMsgClientInfo(rdpPtr dev, rdpClientCon *clientCon)
     }
     memcpy(&(clientCon->client_info), s->p - 4, bytes);
     clientCon->client_info.size = bytes;
+
+    if (clientCon->client_info.version != CLIENT_INFO_CURRENT_VERSION)
+    {
+        LLOGLN(0, ("expected xrdp client_info version %d, got %d",
+                   CLIENT_INFO_CURRENT_VERSION,
+                   clientCon->client_info.version));
+        FatalError("Incompatible xrdp version detected  - please recompile");
+    }
 
     LLOGLN(0, ("  got client info bytes %d", bytes));
     LLOGLN(0, ("  jpeg support %d", clientCon->client_info.jpeg));
@@ -868,6 +881,7 @@ rdpClientConProcessMsgClientInfo(rdpPtr dev, rdpClientCon *clientCon)
                "bytes %d", clientCon->shmemid, clientCon->shmemptr, bytes));
         clientCon->shmem_lineBytes = clientCon->rdp_Bpp * clientCon->cap_width;
         clientCon->cap_stride_bytes = clientCon->cap_width * 4;
+        shmemstatus = SHM_RFX_ACTIVE;
     }
     else if (clientCon->client_info.capture_code == 3) /* H264 */
     {
@@ -888,6 +902,7 @@ rdpClientConProcessMsgClientInfo(rdpPtr dev, rdpClientCon *clientCon)
                "bytes %d", clientCon->shmemid, clientCon->shmemptr, bytes));
         clientCon->shmem_lineBytes = clientCon->rdp_Bpp * clientCon->cap_width;
         clientCon->cap_stride_bytes = clientCon->cap_width * 4;
+        shmemstatus = SHM_H264_ACTIVE;
     }
 
     if (clientCon->client_info.capture_format != 0)
@@ -1006,6 +1021,10 @@ rdpClientConProcessMsgClientInfo(rdpPtr dev, rdpClientCon *clientCon)
     /* rdpLoadLayout */
     rdpInputKeyboardEvent(dev, 18, (long)(&(clientCon->client_info)),
                           0, 0, 0);
+
+    if (clientCon->shmemstatus == SHM_UNINITIALIZED || clientCon->shmemstatus == SHM_RESIZING) {
+        clientCon->shmemstatus = shmemstatus;
+    }
 
     return 0;
 }
@@ -2052,7 +2071,7 @@ rdpClientConAddOsBitmap(rdpPtr dev, rdpClientCon *clientCon,
         return -1;
     }
 
-    oldest = 0x7fffffff;
+    oldest = INT_MAX;
     oldest_index = -1;
     rv = -1;
     index = 0;
@@ -2120,7 +2139,7 @@ rdpClientConAddOsBitmap(rdpPtr dev, rdpClientCon *clientCon,
                "clientCon->osBitmapNumUsed %d",
                clientCon->osBitmapNumUsed));
         /* find oldest */
-        oldest = 0x7fffffff;
+        oldest = INT_MAX;
         oldest_index = -1;
         index = 0;
         while (index < clientCon->maxOsBitmaps)
@@ -2439,9 +2458,17 @@ rdpDeferredUpdateCallback(OsTimerPtr timer, CARD32 now, pointer arg)
     clientCon = (rdpClientCon *) arg;
     clientCon->updateScheduled = FALSE;
     clientCon->lastUpdateTime = now;
+
     if (clientCon->suppress_output)
     {
         LLOGLN(10, ("rdpDeferredUpdateCallback: suppress_output set"));
+        return 0;
+    }
+    if (clientCon->shmemstatus == SHM_UNINITIALIZED || clientCon->shmemstatus == SHM_RESIZING) {
+        LLOGLN(10, ("rdpDeferredUpdateCallback: clientCon->shmemstatus "
+               "is not valid for capture operations: %d"
+               " reschedule rect_id %d rect_id_ack %d",
+               clientCon->shmemstatus, clientCon->rect_id, clientCon->rect_id_ack));
         return 0;
     }
     if ((clientCon->rect_id > clientCon->rect_id_ack) ||
@@ -2454,10 +2481,8 @@ rdpDeferredUpdateCallback(OsTimerPtr timer, CARD32 now, pointer arg)
         rdpScheduleDeferredUpdate(clientCon);
         return 0;
     }
-    else
-    {
-        LLOGLN(10, ("rdpDeferredUpdateCallback: sending"));
-    }
+    LLOGLN(10, ("rdpDeferredUpdateCallback: sending"));
+    clientCon->updateRetries = 0;
     rdpClientConGetScreenImageRect(clientCon->dev, clientCon, &id);
     LLOGLN(10, ("rdpDeferredUpdateCallback: rdp_width %d rdp_height %d "
            "rdp_Bpp %d screen width %d screen height %d",
@@ -2553,12 +2578,20 @@ rdpDeferredUpdateCallback(OsTimerPtr timer, CARD32 now, pointer arg)
 /******************************************************************************/
 #define MIN_MS_BETWEEN_FRAMES 40
 #define MIN_MS_TO_WAIT_FOR_MORE_UPDATES 4
+#define UPDATE_RETRY_TIMEOUT 200 // After this number of retries, give up and perform the capture anyway. This prevents an infinite loop.
 static void
 rdpScheduleDeferredUpdate(rdpClientCon *clientCon)
 {
     uint32_t curTime;
     uint32_t msToWait;
     uint32_t minNextUpdateTime;
+
+    if (clientCon->updateRetries > UPDATE_RETRY_TIMEOUT) {
+        LLOGLN(10, ("rdpScheduleDeferredUpdate: clientCon->updateRetries is %d"
+                    " and has exceeded the timeout of %d retries."
+                    " Overriding rect_id_ack to INT_MAX.", clientCon->updateRetries, UPDATE_RETRY_TIMEOUT));
+        clientCon->rect_id_ack = INT_MAX;
+    }
 
     curTime = (uint32_t) GetTimeInMillis();
     /* use two separate delays in order to limit the update rate and wait a bit
@@ -2579,6 +2612,7 @@ rdpScheduleDeferredUpdate(rdpClientCon *clientCon)
                                       rdpDeferredUpdateCallback,
                                       clientCon);
     clientCon->updateScheduled = TRUE;
+    ++clientCon->updateRetries;
 }
 
 /******************************************************************************/
