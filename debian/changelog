@@ -1,3 +1,10 @@
+xorgxrdp (1:0.2.17-1) unstable; urgency=medium
+
+  * New upstream version.
+    + Refresh patches.
+
+ -- Dominik George <natureshadow@debian.org>  Wed, 29 Sep 2021 16:13:07 +0200
+
 xorgxrdp (1:0.2.15-1) unstable; urgency=medium
 
   * New upstream version.
