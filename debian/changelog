@@ -4,6 +4,8 @@ xorgxrdp (1:0.2.17-1) unstable; urgency=medium
     + Refresh patches.
     + Require xrdp >= 0.9.16.
   * Bump Standards-Version to 4.6.0 (no changes needed).
+  * Fix duplicate entry in d/copyright.
+  * Remove lintian override no-upstream-changelog.
 
  -- Dominik George <natureshadow@debian.org>  Wed, 29 Sep 2021 16:13:07 +0200
 

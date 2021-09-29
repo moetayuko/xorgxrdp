@@ -203,7 +203,6 @@ License: MirOS
 
 Files: Makefile.in
  aclocal.m4
- Makefile.in
  config_ac-h.in
  m4/.gitignore
  module/Makefile.in
