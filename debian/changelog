@@ -2,6 +2,7 @@ xorgxrdp (1:0.2.18-1) unstable; urgency=medium
 
   * New upstream version.
     * Refresh patches.
+    * Removed unused lintian override.
 
  -- Dominik George <natureshadow@debian.org>  Fri, 01 Apr 2022 12:50:52 +0200
 
