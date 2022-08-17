@@ -57,7 +57,7 @@ endif
 override_dh_auto_configure:
 	./bootstrap
 	./configure \
-	    --enable-glamor \
+	    --enable-lrandr \
 	    ${CONFIGURE_ARGS}
 	find . -name Makefile -print0 | \
 	    xargs -0 perl -pi -e 's!XRDP_PID_PATH.*?/run!$$&/xrdp!g' --
