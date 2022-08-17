@@ -1,0 +1,64 @@
+name: Build for debian
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Xorgxrdp ref
+        required: true
+        default: nvenc
+      xrdp_ref:
+        description: Xrdp ref
+        required: true
+        default: nvenc
+      series:
+        description: Debian release series
+        required: true
+        default: bookworm
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    container: debian:${{ github.event.inputs.series }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      DPKG_COLORS: always
+      FORCE_UNSAFE_CONFIGURE: 1
+      DEB_BUILD_OPTIONS: nocheck
+    steps:
+      - name: Install Dependencies
+        run: |
+          echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/00noconfirm
+          apt-get update && \
+            apt-get install -yq build-essential fakeroot devscripts git-buildpackage
+
+      - uses: actions/checkout@v4
+        with:
+          repository: moetayuko/xrdp
+          path: xrdp_src
+          ref: ${{ github.event.inputs.xrdp_ref }}
+
+      - uses: actions/checkout@v4
+        with:
+          path: xorgxrdp_src
+          ref: ${{ github.event.inputs.ref }}
+
+      - run: apt-get build-dep -yq ./xrdp_src
+
+      - name: Build install xrdp
+        working-directory: xrdp_src
+        run: |
+          gbp buildpackage --git-debian-branch=$(git branch --show-current) --git-upstream-tree=SLOPPY -uc -us
+          debi --with-depends
+
+      - run: apt-get build-dep -yq ./xorgxrdp_src
+
+      - name: Build
+        working-directory: xorgxrdp_src
+        run: |
+          gbp buildpackage --git-debian-branch=$(git branch --show-current) --git-upstream-tree=SLOPPY -uc -us
+
+      - uses: actions/upload-artifact@v4
+        with:
+          path: "**/*.deb"
+          name: xorgxrdp_${{ github.event.inputs.ref }}-${{ github.event.inputs.series }}
