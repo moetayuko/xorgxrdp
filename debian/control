@@ -19,7 +19,7 @@ Build-Depends:
  xrdp (>= 0.9.16),
  xserver-xorg-core,
  xserver-xorg-dev (>= 2:1.19),
-Standards-Version: 4.6.0
+Standards-Version: 4.6.2
 Rules-Requires-Root: no
 Vcs-Browser: https://salsa.debian.org/debian-remote-team/xorgxrdp
 Vcs-Git: https://salsa.debian.org/debian-remote-team/xorgxrdp.git
