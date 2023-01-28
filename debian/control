@@ -8,8 +8,8 @@ Uploaders:
 Section: net
 Priority: optional
 Build-Depends:
- autoconf (>= 2.59),
- automake (>= 1.6),
+ autoconf,
+ automake,
  debhelper-compat (= 12),
  libepoxy-dev,
  libgbm-dev,
@@ -18,7 +18,7 @@ Build-Depends:
  x11-utils,
  xrdp (>= 0.9.16),
  xserver-xorg-core,
- xserver-xorg-dev (>= 2:1.19),
+ xserver-xorg-dev,
 Standards-Version: 4.6.2
 Rules-Requires-Root: no
 Vcs-Browser: https://salsa.debian.org/debian-remote-team/xorgxrdp
