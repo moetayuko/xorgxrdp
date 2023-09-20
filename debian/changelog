@@ -1,3 +1,10 @@
+xorgxrdp (1:0.2.12-1+deb11u1) bullseye-security; urgency=high
+
+  * Non-maintainer upload.
+  * Rebuild against xrdp 0.9.21.1 to fix Debian bug #1052197.
+
+ -- Markus Koschany <apo@debian.org>  Thu, 21 Sep 2023 00:21:55 +0200
+
 xorgxrdp (1:0.2.12-1) unstable; urgency=low
 
   * New upstream version
