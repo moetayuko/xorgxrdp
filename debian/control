@@ -5,6 +5,7 @@ Uploaders:
  Andreas Tille <tille@debian.org>,
  Mike Gabriel <sunweaver@debian.org>,
  Thorsten Glaser <tg@mirbsd.de>,
+ Gürkan Myczko <tar@debian.org>,
 Section: net
 Priority: optional
 Build-Depends:
@@ -16,7 +17,7 @@ Build-Depends:
  nasm [amd64 hurd-i386 i386 kfreebsd-amd64 kfreebsd-i386],
  pkg-config,
  x11-utils,
- xrdp (>= 0.9.16),
+ xrdp,
  xserver-xorg-core,
  xserver-xorg-dev (>= 2:1.19),
 Standards-Version: 4.6.2
