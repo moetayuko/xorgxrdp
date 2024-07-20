@@ -46,6 +46,10 @@ capture
 #include "rdpMisc.h"
 #include "rdpCapture.h"
 
+#include "wyhash.h"
+/* hex digits of pi as a 64 bit int */
+#define WYHASH_SEED 0x3243f6a8885a308dull
+
 #if defined(XORGXRDP_GLAMOR)
 #include "rdpEgl.h"
 #include <glamor.h>
@@ -120,24 +124,18 @@ rdpFillBox_yuvalp(int ax, int ay,
 /* 19595  38470   7471
   -11071 -21736  32807
    32756 -27429  -5327 */
-static int
-rdpCopyBox_a8r8g8b8_to_yuvalp(int ax, int ay,
-                              const uint8_t *src, int src_stride,
-                              uint8_t *dst, int dst_stride,
-                              BoxPtr rects, int num_rects)
+int
+a8r8g8b8_to_yuvalp_box(const uint8_t *s8, int src_stride,
+                       uint8_t *d8, int dst_stride,
+                       int width, int height)
 {
-    const uint8_t *s8;
-    uint8_t *d8;
     uint8_t *yptr;
     uint8_t *uptr;
     uint8_t *vptr;
     uint8_t *aptr;
     const uint32_t *s32;
-    int index;
     int jndex;
     int kndex;
-    int width;
-    int height;
     uint32_t pixel;
     uint8_t a;
     int r;
@@ -146,6 +144,51 @@ rdpCopyBox_a8r8g8b8_to_yuvalp(int ax, int ay,
     int y;
     int u;
     int v;
+
+    for (jndex = 0; jndex < height; jndex++)
+    {
+        s32 = (const uint32_t *) s8;
+        yptr = d8;
+        uptr = yptr + 64 * 64;
+        vptr = uptr + 64 * 64;
+        aptr = vptr + 64 * 64;
+        kndex = 0;
+        while (kndex < width)
+        {
+            pixel = *(s32++);
+            RGB_SPLIT(a, r, g, b, pixel);
+            y = (r *  19595 + g *  38470 + b *   7471) >> 16;
+            u = (r * -11071 + g * -21736 + b *  32807) >> 16;
+            v = (r *  32756 + g * -27429 + b *  -5327) >> 16;
+            u = u + 128;
+            v = v + 128;
+            y = RDPCLAMP(y, 0, UCHAR_MAX);
+            u = RDPCLAMP(u, 0, UCHAR_MAX);
+            v = RDPCLAMP(v, 0, UCHAR_MAX);
+            *(yptr++) = y;
+            *(uptr++) = u;
+            *(vptr++) = v;
+            *(aptr++) = a;
+            kndex++;
+        }
+        d8 += dst_stride;
+        s8 += src_stride;
+    }
+    return 0;
+}
+
+/******************************************************************************/
+static int
+rdpCopyBox_a8r8g8b8_to_yuvalp(rdpClientCon *clientCon, int ax, int ay,
+                              const uint8_t *src, int src_stride,
+                              uint8_t *dst, int dst_stride,
+                              BoxPtr rects, int num_rects)
+{
+    const uint8_t *s8;
+    uint8_t *d8;
+    int index;
+    int width;
+    int height;
     BoxPtr box;
 
     dst = dst + (ay << 8) * (dst_stride >> 8) + (ax << 8);
@@ -158,35 +201,9 @@ rdpCopyBox_a8r8g8b8_to_yuvalp(int ax, int ay,
         d8 += box->x1 - ax;
         width = box->x2 - box->x1;
         height = box->y2 - box->y1;
-        for (jndex = 0; jndex < height; jndex++)
-        {
-            s32 = (const uint32_t *) s8;
-            yptr = d8;
-            uptr = yptr + 64 * 64;
-            vptr = uptr + 64 * 64;
-            aptr = vptr + 64 * 64;
-            kndex = 0;
-            while (kndex < width)
-            {
-                pixel = *(s32++);
-                RGB_SPLIT(a, r, g, b, pixel);
-                y = (r *  19595 + g *  38470 + b *   7471) >> 16;
-                u = (r * -11071 + g * -21736 + b *  32807) >> 16;
-                v = (r *  32756 + g * -27429 + b *  -5327) >> 16;
-                u = u + 128;
-                v = v + 128;
-                y = RDPCLAMP(y, 0, UCHAR_MAX);
-                u = RDPCLAMP(u, 0, UCHAR_MAX);
-                v = RDPCLAMP(v, 0, UCHAR_MAX);
-                *(yptr++) = y;
-                *(uptr++) = u;
-                *(vptr++) = v;
-                *(aptr++) = a;
-                kndex++;
-            }
-            d8 += 64;
-            s8 += src_stride;
-        }
+        clientCon->dev->a8r8g8b8_to_yuvalp_box(s8, src_stride,
+                                               d8, 64,
+                                               width, height);
     }
     return 0;
 }
@@ -537,6 +554,103 @@ a8r8g8b8_to_nv12_box(const uint8_t *s8, int src_stride,
 }
 
 /******************************************************************************/
+int
+a8r8g8b8_to_nv12_709fr_box(const uint8_t *s8, int src_stride,
+                           uint8_t *d8_y, int dst_stride_y,
+                           uint8_t *d8_uv, int dst_stride_uv,
+                           int width, int height)
+{
+    int index;
+    int jndex;
+    int R;
+    int G;
+    int B;
+    int Y;
+    int U;
+    int V;
+    int U_sum;
+    int V_sum;
+    int pixel;
+    const uint32_t *s32a;
+    const uint32_t *s32b;
+    uint8_t *d8ya;
+    uint8_t *d8yb;
+    uint8_t *d8uv;
+
+    for (jndex = 0; jndex < height; jndex += 2)
+    {
+        s32a = (const uint32_t *) (s8 + src_stride * jndex);
+        s32b = (const uint32_t *) (s8 + src_stride * (jndex + 1));
+        d8ya = d8_y + dst_stride_y * jndex;
+        d8yb = d8_y + dst_stride_y * (jndex + 1);
+        d8uv = d8_uv + dst_stride_uv * (jndex / 2);
+        for (index = 0; index < width; index += 2)
+        {
+            U_sum = 0;
+            V_sum = 0;
+
+            pixel = s32a[0];
+            s32a++;
+            R = (pixel >> 16) & 0xff;
+            G = (pixel >>  8) & 0xff;
+            B = (pixel >>  0) & 0xff;
+            Y =  ( 54 * R + 183 * G +  18 * B) >> 8;
+            U = ((-29 * R -  99 * G + 128 * B) >> 8) + 128;
+            V = ((128 * R - 116 * G -  12 * B) >> 8) + 128;
+            d8ya[0] = RDPCLAMP(Y, 0, 255);
+            d8ya++;
+            U_sum += RDPCLAMP(U, 0, 255);
+            V_sum += RDPCLAMP(V, 0, 255);
+
+            pixel = s32a[0];
+            s32a++;
+            R = (pixel >> 16) & 0xff;
+            G = (pixel >>  8) & 0xff;
+            B = (pixel >>  0) & 0xff;
+            Y =  ( 54 * R + 183 * G +  18 * B) >> 8;
+            U = ((-29 * R -  99 * G + 128 * B) >> 8) + 128;
+            V = ((128 * R - 116 * G -  12 * B) >> 8) + 128;
+            d8ya[0] = RDPCLAMP(Y, 0, 255);
+            d8ya++;
+            U_sum += RDPCLAMP(U, 0, 255);
+            V_sum += RDPCLAMP(V, 0, 255);
+
+            pixel = s32b[0];
+            s32b++;
+            R = (pixel >> 16) & 0xff;
+            G = (pixel >>  8) & 0xff;
+            B = (pixel >>  0) & 0xff;
+            Y =  ( 54 * R + 183 * G +  18 * B) >> 8;
+            U = ((-29 * R -  99 * G + 128 * B) >> 8) + 128;
+            V = ((128 * R - 116 * G -  12 * B) >> 8) + 128;
+            d8yb[0] = RDPCLAMP(Y, 0, 255);
+            d8yb++;
+            U_sum += RDPCLAMP(U, 0, 255);
+            V_sum += RDPCLAMP(V, 0, 255);
+
+            pixel = s32b[0];
+            s32b++;
+            R = (pixel >> 16) & 0xff;
+            G = (pixel >>  8) & 0xff;
+            B = (pixel >>  0) & 0xff;
+            Y =  ( 54 * R + 183 * G +  18 * B) >> 8;
+            U = ((-29 * R -  99 * G + 128 * B) >> 8) + 128;
+            V = ((128 * R - 116 * G -  12 * B) >> 8) + 128;
+            d8yb[0] = RDPCLAMP(Y, 0, 255);
+            d8yb++;
+            U_sum += RDPCLAMP(U, 0, 255);
+            V_sum += RDPCLAMP(V, 0, 255);
+
+            d8uv[0] = (U_sum + 2) / 4;
+            d8uv++;
+            d8uv[0] = (V_sum + 2) / 4;
+            d8uv++;
+        }
+    }
+    return 0;
+}
+
+/******************************************************************************/
 /* copy rects with no error checking */
 static int
 rdpCopyBox_a8r8g8b8_to_nv12(rdpClientCon *clientCon,
@@ -574,6 +688,102 @@ rdpCopyBox_a8r8g8b8_to_nv12(rdpClientCon *clientCon,
 }
 
 /******************************************************************************/
+/* copy rects with no error checking */
+static int
+rdpCopyBox_a8r8g8b8_to_nv12_709fr(rdpClientCon *clientCon,
+                                  const uint8_t *src, int src_stride,
+                                  int srcx, int srcy,
+                                  uint8_t *dst_y, int dst_stride_y,
+                                  uint8_t *dst_uv, int dst_stride_uv,
+                                  int dstx, int dsty,
+                                  BoxPtr rects, int num_rects)
+{
+    const uint8_t *s8;
+    uint8_t *d8_y;
+    uint8_t *d8_uv;
+    int index;
+    int width;
+    int height;
+    BoxPtr box;
+
+    for (index = 0; index < num_rects; index++)
+    {
+        box = rects + index;
+        s8 = src + (box->y1 - srcy) * src_stride;
+        s8 += (box->x1 - srcx) * 4;
+        d8_y = dst_y + (box->y1 - dsty) * dst_stride_y;
+        d8_y += (box->x1 - dstx) * 1;
+        d8_uv = dst_uv + ((box->y1 - dsty) / 2) * dst_stride_uv;
+        d8_uv += (box->x1 - dstx) * 1;
+        width = box->x2 - box->x1;
+        height = box->y2 - box->y1;
+        clientCon->dev->a8r8g8b8_to_nv12_709fr_box(s8, src_stride,
+                                                   d8_y, dst_stride_y,
+                                                   d8_uv, dst_stride_uv,
+                                                   width, height);
+    }
+    return 0;
+}
+
+/******************************************************************************/
+static Bool
+rdpCopyBoxList(rdpClientCon *clientCon, PixmapPtr dstPixmap,
+               BoxPtr out_rects, int num_out_rects,
+               int srcx, int srcy,
+               int dstx, int dsty)
+{
+    PixmapPtr hwPixmap;
+    BoxPtr pbox;
+    ScreenPtr pScreen;
+    GCPtr copyGC;
+    ChangeGCVal tmpval[1];
+    int count;
+    int index;
+    int left;
+    int top;
+    int width;
+    int height;
+    char pix1[16];
+    rdpPtr dev;
+
+    LLOGLN(10, ("rdpCopyBoxList:"));
+
+    dev = clientCon->dev;
+    pScreen = dev->pScreen;
+    hwPixmap = pScreen->GetScreenPixmap(pScreen);
+    copyGC = GetScratchGC(dev->depth, pScreen);
+    if (copyGC == NULL)
+    {
+        return FALSE;
+    }
+    tmpval[0].val = GXcopy;
+    ChangeGC(NullClient, copyGC, GCFunction, tmpval);
+    ValidateGC(&(hwPixmap->drawable), copyGC);
+    count = num_out_rects;
+    pbox = out_rects;
+    for (index = 0; index < count; index++)
+    {
+        left = pbox[index].x1;
+        top = pbox[index].y1;
+        width = pbox[index].x2 - pbox[index].x1;
+        height = pbox[index].y2 - pbox[index].y1;
+        if ((width > 0) && (height > 0))
+        {
+            copyGC->ops->CopyArea(&(hwPixmap->drawable),
+                                    &(dstPixmap->drawable), copyGC,
+                                    left - srcx, top - srcy,
+                                    width, height,
+                                    left - dstx, top - dsty);
+        }
+    }
+    FreeScratchGC(copyGC);
+    pScreen->GetImage(&(dstPixmap->drawable), 0, 0, 1, 1, ZPixmap,
+                          0xffffffff, pix1);
+
+    return TRUE;
+}
+
+/******************************************************************************/
 static Bool
 isShmStatusActive(enum shared_memory_status status) {
     switch (status) {
@@ -587,9 +797,27 @@ isShmStatusActive(enum shared_memory_status status) {
 }
 
 /******************************************************************************/
+/* copy rects with no error checking */
+static uint64_t
+wyhash_rfx_tile(const uint8_t *src, int src_stride, int x, int y, uint64_t seed)
+{
+    int row;
+    uint64_t hash;
+    const uint8_t *s8;
+    hash = seed;
+    s8 = src + (y * src_stride) + (x * 4);
+    for(row = 0; row < 64; row++)
+    {
+        hash = wyhash((const void*)s8, 64 * 4, hash, _wyp);
+        s8 += src_stride;
+    }
+    return hash;
+}
+
+/******************************************************************************/
 static Bool
-rdpCapture0(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
-            int *num_out_rects, struct image_data *id)
+rdpCaptureSimple(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
+                 int *num_out_rects, struct image_data *id)
 {
     BoxPtr psrc_rects;
     BoxRec rect;
@@ -602,10 +830,10 @@ rdpCapture0(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     int dst_stride;
     int dst_format;
 
-    LLOGLN(10, ("rdpCapture0:"));
+    LLOGLN(10, ("rdpCaptureSimple:"));
 
     if (!isShmStatusActive(clientCon->shmemstatus)) {
-        LLOGLN(0, ("rdpCapture0: WARNING -- Shared memory is not configured."
+        LLOGLN(0, ("rdpCaptureSimple: WARNING -- Shared memory is not configured."
                    " Aborting capture!"));
         return FALSE;
     }
@@ -628,6 +856,17 @@ rdpCapture0(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     {
         rect = psrc_rects[i];
         (*out_rects)[i] = rect;
+    }
+
+    if (clientCon->dev->glamor || clientCon->dev->nvidia)
+    {
+        /* copy vmem to smem */
+        if (!rdpCopyBoxList(clientCon, clientCon->dev->screenSwPixmap,
+                            *out_rects, *num_out_rects,
+                            0, 0, 0, 0))
+        {
+            return FALSE;
+        }
     }
 
     src = id->pixels;
@@ -673,7 +912,7 @@ rdpCapture0(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     }
     else
     {
-        LLOGLN(0, ("rdpCapture0: unimplemented color conversion"));
+        LLOGLN(0, ("rdpCaptureSimple: unimplemented color conversion"));
     }
     return rv;
 }
@@ -681,8 +920,8 @@ rdpCapture0(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
 /******************************************************************************/
 /* make out_rects always multiple of 16 width and height */
 static Bool
-rdpCapture1(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
-            int *num_out_rects, struct image_data *id)
+rdpCaptureSufA16(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
+                 int *num_out_rects, struct image_data *id)
 {
     BoxPtr psrc_rects;
     BoxRec rect;
@@ -713,10 +952,10 @@ rdpCapture1(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     int dst_stride;
     int dst_format;
 
-    LLOGLN(10, ("rdpCapture1:"));
+    LLOGLN(10, ("rdpCaptureSufA16:"));
 
     if (!isShmStatusActive(clientCon->shmemstatus)) {
-        LLOGLN(0, ("rdpCapture1: WARNING -- Shared memory is not configured."
+        LLOGLN(0, ("rdpCaptureSufA16: WARNING -- Shared memory is not configured."
                " Aborting capture!"));
         return FALSE;
     }
@@ -777,6 +1016,17 @@ rdpCapture1(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
         index++;
     }
 
+    if (clientCon->dev->glamor || clientCon->dev->nvidia)
+    {
+        /* copy vmem to smem */
+        if (!rdpCopyBoxList(clientCon, clientCon->dev->screenSwPixmap,
+                            *out_rects, *num_out_rects,
+                            0, 0, 0, 0))
+        {
+            return FALSE;
+        }
+    }
+
     src = id->pixels;
     dst = id->shmem_pixels;
     dst_format = clientCon->rdp_format;
@@ -822,15 +1072,15 @@ rdpCapture1(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     }
     else
     {
-        LLOGLN(0, ("rdpCapture1: unimplemented color conversion"));
+        LLOGLN(0, ("rdpCaptureSufA16: unimplemented color conversion"));
     }
     return rv;
 }
 
 /******************************************************************************/
 static Bool
-rdpCapture2(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
-            int *num_out_rects, struct image_data *id)
+rdpCaptureGfxPro(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
+                 int *num_out_rects, struct image_data *id)
 {
     int x;
     int y;
@@ -848,17 +1098,28 @@ rdpCapture2(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     int dst_stride;
     int crc_offset;
     int crc_stride;
-    int crc;
+    uint64_t crc;
     int num_crcs;
     int mon_index;
 
-    LLOGLN(10, ("rdpCapture2:"));
+    LLOGLN(10, ("rdpCaptureGfxPro:"));
 
     if (!isShmStatusActive(clientCon->shmemstatus))
     {
-        LLOGLN(0, ("rdpCapture2: WARNING -- Shared memory is not configured"
+        LLOGLN(0, ("rdpCaptureGfxPro: WARNING -- Shared memory is not configured"
                    " for RFX. Aborting capture!"));
         return FALSE;
+    }
+
+    if (clientCon->dev->glamor || clientCon->dev->nvidia)
+    {
+        /* copy vmem to smem */
+        if (!rdpCopyBoxList(clientCon, clientCon->dev->screenSwPixmap,
+                            REGION_RECTS(in_reg), REGION_NUM_RECTS(in_reg),
+                            0, 0, 0, 0))
+        {
+            return FALSE;
+        }
     }
 
     *out_rects = g_new(BoxRec, RDP_MAX_TILES);
@@ -882,12 +1143,12 @@ rdpCapture2(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     num_crcs = crc_stride * ((id->height + 63) / 64);
     if (num_crcs != clientCon->num_rfx_crcs_alloc[mon_index])
     {
-        LLOGLN(0, ("rdpCapture2: resize the crc list was %d now %d",
+        LLOGLN(0, ("rdpCaptureGfxPro: resize the crc list was %d now %d",
                clientCon->num_rfx_crcs_alloc[mon_index], num_crcs));
         /* resize the crc list */
         clientCon->num_rfx_crcs_alloc[mon_index] = num_crcs;
         free(clientCon->rfx_crcs[mon_index]);
-        clientCon->rfx_crcs[mon_index] = g_new0(int, num_crcs);
+        clientCon->rfx_crcs[mon_index] = g_new0(uint64_t, num_crcs);
     }
 
     extents_rect = *rdpRegionExtents(in_reg);
@@ -902,58 +1163,62 @@ rdpCapture2(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
             rect.x2 = rect.x1 + XRDP_RFX_ALIGN;
             rect.y2 = rect.y1 + XRDP_RFX_ALIGN;
             rcode = rdpRegionContainsRect(in_reg, &rect);
-            LLOGLN(10, ("rdpCapture2: rcode %d", rcode));
+            LLOGLN(10, ("rdpCaptureGfxPro: rcode %d", rcode));
 
             if (rcode == rgnOUT)
             {
-                LLOGLN(10, ("rdpCapture2: rgnOUT"));
+                LLOGLN(10, ("rdpCaptureGfxPro: rgnOUT"));
                 rdpRegionInit(&tile_reg, &rect, 0);
                 rdpRegionSubtract(in_reg, in_reg, &tile_reg);
                 rdpRegionUninit(&tile_reg);
             }
             else
             {
-                crc = crc_start();
+                /* hex digits of pi as a 64 bit int */
+                crc = WYHASH_SEED;
                 if (rcode == rgnPART)
                 {
-                    LLOGLN(10, ("rdpCapture2: rgnPART"));
+                    LLOGLN(10, ("rdpCaptureGfxPro: rgnPART"));
                     rdpFillBox_yuvalp(x, y, dst, dst_stride);
                     rdpRegionInit(&tile_reg, &rect, 0);
                     rdpRegionIntersect(&tile_reg, in_reg, &tile_reg);
                     rects = REGION_RECTS(&tile_reg);
                     num_rects = REGION_NUM_RECTS(&tile_reg);
-                    crc = crc_process_data(crc, rects,
-                                           num_rects * sizeof(BoxRec));
-                    rdpCopyBox_a8r8g8b8_to_yuvalp(x, y,
+                    crc = wyhash((const void*)rects, num_rects * sizeof(BoxRec), crc, _wyp);
+                    rdpCopyBox_a8r8g8b8_to_yuvalp(clientCon, x, y,
                                                   src, src_stride,
                                                   dst, dst_stride,
                                                   rects, num_rects);
+                    crc_dst = dst + (y << 8) * (dst_stride >> 8) + (x << 8);
+                    crc = wyhash((const void*)crc_dst, 64 * 64 * 4, crc, _wyp);
                     rdpRegionUninit(&tile_reg);
                 }
                 else /* rgnIN */
                 {
-                    LLOGLN(10, ("rdpCapture2: rgnIN"));
-                    rdpCopyBox_a8r8g8b8_to_yuvalp(x, y,
-                                                  src, src_stride,
-                                                  dst, dst_stride,
-                                                  &rect, 1);
+                    LLOGLN(10, ("rdpCaptureGfxPro: rgnIN"));
+                    crc = wyhash_rfx_tile(src, src_stride, x, y, crc);
                 }
-                crc_dst = dst + (y << 8) * (dst_stride >> 8) + (x << 8);
-                crc = crc_process_data(crc, crc_dst, 64 * 64 * 4);
-                crc = crc_end(crc);
-                crc_offset = (y / XRDP_RFX_ALIGN) * crc_stride 
+                crc_offset = (y / XRDP_RFX_ALIGN) * crc_stride
                              + (x / XRDP_RFX_ALIGN);
-                LLOGLN(10, ("rdpCapture2: crc 0x%8.8x 0x%8.8x",
+                LLOGLN(10, ("rdpCaptureGfxPro: crc 0x%" PRIx64 " 0x%" PRIx64,
                        crc, clientCon->rfx_crcs[mon_index][crc_offset]));
                 if (crc == clientCon->rfx_crcs[mon_index][crc_offset])
                 {
-                    LLOGLN(10, ("rdpCapture2: crc skip at x %d y %d", x, y));
+                    LLOGLN(10, ("rdpCaptureGfxPro: crc skip at x %d y %d", x, y));
                     rdpRegionInit(&tile_reg, &rect, 0);
                     rdpRegionSubtract(in_reg, in_reg, &tile_reg);
                     rdpRegionUninit(&tile_reg);
                 }
                 else
                 {
+                    /* lazily only do this if hash wasn't identical */
+                    if (rcode != rgnPART)
+                    {
+                        rdpCopyBox_a8r8g8b8_to_yuvalp(clientCon, x, y,
+                                src, src_stride,
+                                dst, dst_stride,
+                                &rect, 1);
+                    }
                     clientCon->rfx_crcs[mon_index][crc_offset] = crc;
                     (*out_rects)[out_rect_index] = rect;
                     out_rect_index++;
@@ -976,8 +1241,8 @@ rdpCapture2(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
 /******************************************************************************/
 /* make out_rects always multiple of 2 width and height */
 static Bool
-rdpCapture3(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
-            int *num_out_rects, struct image_data *id)
+rdpCaptureSufA2(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
+                int *num_out_rects, struct image_data *id)
 {
     BoxPtr psrc_rects;
     BoxRec rect;
@@ -990,12 +1255,13 @@ rdpCapture3(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     int src_stride;
     int dst_stride;
     int dst_format;
+    int monitor_index;
 
-    LLOGLN(10, ("rdpCapture3:"));
+    LLOGLN(10, ("rdpCaptureSufA2:"));
 
     if (!isShmStatusActive(clientCon->shmemstatus))
     {
-        LLOGLN(0, ("rdpCapture3: WARNING -- Shared memory is not configured."
+        LLOGLN(0, ("rdpCaptureSufA2: WARNING -- Shared memory is not configured."
                " Aborting capture!"));
         return FALSE;
     }
@@ -1008,6 +1274,26 @@ rdpCapture3(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     if (num_rects < 1)
     {
         return FALSE;
+    }
+
+    monitor_index = (id->flags >> 28) & 0xF;
+    if (clientCon->accelAssistPixmaps[monitor_index] != NULL)
+    {
+        /* copy vmem to vmem */
+        rv = rdpCopyBoxList(clientCon,
+                            clientCon->accelAssistPixmaps[monitor_index],
+                            *out_rects, *num_out_rects,
+                            0, 0, id->left, id->top);
+        id->flags |= 1;
+        return rv;
+        /* accel assist will do the rest */
+    }
+    else if (clientCon->dev->glamor || clientCon->dev->nvidia)
+    {
+        /* copy vmem to smem */
+        rv = rdpCopyBoxList(clientCon, clientCon->dev->screenSwPixmap,
+                            *out_rects, *num_out_rects,
+                            0, 0, id->left, id->top);
     }
 
     *num_out_rects = num_rects;
@@ -1055,70 +1341,130 @@ rdpCapture3(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
     }
     else
     {
-        LLOGLN(0, ("rdpCapture3: unimplemented color conversion"));
+        LLOGLN(0, ("rdpCaptureSufA2: unimplemented color conversion"));
     }
 
     return rv;
 }
 
-#if defined(XORGXRDP_GLAMOR)
 /******************************************************************************/
-static int
-copy_vmem(rdpPtr dev, RegionPtr in_reg)
+/* make out_rects always multiple of 2 width and height */
+static Bool
+rdpCaptureGfxA2(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
+                int *num_out_rects, struct image_data *id)
 {
-    PixmapPtr hwPixmap;
-    PixmapPtr swPixmap;
-    BoxPtr pbox;
-    ScreenPtr pScreen;
-    GCPtr copyGC;
-    ChangeGCVal tmpval[1];
-    int count;
+    BoxPtr psrc_rects;
+    BoxRec rect;
+    int num_rects;
     int index;
-    int left;
-    int top;
-    int width;
-    int height;
+    uint8_t *dst_uv;
+    Bool rv;
+    const uint8_t *src;
+    uint8_t *dst;
+    int src_stride;
+    int dst_stride;
+    int dst_format;
+    int monitor_index;
 
-    /* copy the dirty area from the screen hw pixmap to a sw pixmap
-       this should do a dma */
-    pScreen = dev->pScreen;
-    hwPixmap = pScreen->GetScreenPixmap(pScreen);
-    swPixmap = dev->screenSwPixmap;
-    copyGC = GetScratchGC(dev->depth, pScreen);
-    if (copyGC != NULL)
+    LLOGLN(10, ("rdpCaptureGfxA2:"));
+
+    if (!isShmStatusActive(clientCon->shmemstatus))
     {
-        tmpval[0].val = GXcopy;
-        ChangeGC(NullClient, copyGC, GCFunction, tmpval);
-        ValidateGC(&(hwPixmap->drawable), copyGC);
-        count = REGION_NUM_RECTS(in_reg);
-        pbox = REGION_RECTS(in_reg);
-        for (index = 0; index < count; index++)
+        LLOGLN(0, ("rdpCaptureGfxA2: WARNING -- Shared memory is not configured."
+               " Aborting capture!"));
+        return FALSE;
+    }
+
+    rdpRegionTranslate(in_reg, -id->left, -id->top);
+
+    num_rects = REGION_NUM_RECTS(in_reg);
+    psrc_rects = REGION_RECTS(in_reg);
+
+    if (num_rects < 1)
+    {
+        return FALSE;
+    }
+
+    *num_out_rects = num_rects;
+
+    *out_rects = g_new(BoxRec, num_rects * 4);
+    index = 0;
+    while (index < num_rects)
+    {
+        rect = psrc_rects[index];
+        LLOGLN(10, ("old x1 %d y1 %d x2 %d y2 %d", rect.x1, rect.y1,
+               rect.x2, rect.y2));
+        rect.x1 -= rect.x1 & 1;
+        rect.y1 -= rect.y1 & 1;
+        rect.x2 += rect.x2 & 1;
+        rect.y2 += rect.y2 & 1;
+        if (rect.x2 > id->width)
         {
-            left = pbox[index].x1;
-            top = pbox[index].y1;
-            width = pbox[index].x2 - pbox[index].x1;
-            height = pbox[index].y2 - pbox[index].y1;
-            if ((width > 0) && (height > 0))
-            {
-                LLOGLN(10, ("copy_vmem: hwPixmap tex 0x%8.8x "
-                       "swPixmap tex 0x%8.8x",
-                       glamor_get_pixmap_texture(hwPixmap),
-                       glamor_get_pixmap_texture(swPixmap)));
-                 copyGC->ops->CopyArea(&(hwPixmap->drawable),
-                                       &(swPixmap->drawable),
-                                       copyGC, left, top,
-                                       width, height, left, top);
-            }
+            rect.x2 = id->width & ~1;
         }
-        FreeScratchGC(copyGC);
+        if (rect.y2 > id->height)
+        {
+            rect.y2 = id->height & ~1;
+        }
+        LLOGLN(10, ("new x1 %d y1 %d x2 %d y2 %d", rect.x1, rect.y1,
+               rect.x2, rect.y2));
+        (*out_rects)[index] = rect;
+        index++;
+    }
+    rv = TRUE;
+    monitor_index = (id->flags >> 28) & 0xF;
+    if (clientCon->accelAssistPixmaps[monitor_index] != NULL)
+    {
+        LLOGLN(10, ("rdpCaptureGfxA2: a monitor_index %d left %d top %d",
+               monitor_index, id->left, id->top));
+        /* copy vmem to vmem */
+        rv = rdpCopyBoxList(clientCon,
+                            clientCon->accelAssistPixmaps[monitor_index],
+                            *out_rects, num_rects,
+                            -id->left, -id->top, 0, 0);
+        id->flags |= 1;
+        return rv;
+        /* accel assist will do the rest */
+    }
+    else if (clientCon->dev->glamor || clientCon->dev->nvidia)
+    {
+        LLOGLN(10, ("rdpCaptureGfxA2: b monitor_index %d left %d top %d",
+               monitor_index, id->left, id->top));
+        /* copy vmem to smem */
+        if (!rdpCopyBoxList(clientCon,
+                            clientCon->dev->screenSwPixmap,
+                            *out_rects, num_rects,
+                            -id->left, -id->top, -id->left, -id->top))
+        {
+            return FALSE;
+        }
+    }
+
+    src = id->pixels;
+    dst = id->shmem_pixels;
+    dst_format = clientCon->rdp_format;
+    src_stride = id->lineBytes;
+    dst_stride = id->width;
+
+    if (dst_format == XRDP_nv12_709fr)
+    {
+        dst_uv = dst;
+        dst_uv += id->width * id->height;
+        rdpCopyBox_a8r8g8b8_to_nv12_709fr(clientCon,
+                                          src, src_stride,
+                                          -id->left, -id->top,
+                                          dst, dst_stride,
+                                          dst_uv, dst_stride,
+                                          0, 0,
+                                          *out_rects, num_rects);
     }
     else
     {
-        return 1;
+        LLOGLN(0, ("rdpCaptureGfxA2: unimplemented color conversion"));
     }
-    return 0;
+
+    return rv;
 }
-#endif
 
 /**
  * Copy an array of rectangles from one memory area to another
@@ -1127,35 +1473,26 @@ Bool
 rdpCapture(rdpClientCon *clientCon, RegionPtr in_reg, BoxPtr *out_rects,
            int *num_out_rects, struct image_data *id)
 {
-    int mode;
+    enum xrdp_capture_code mode;
 
     LLOGLN(10, ("rdpCapture:"));
     mode = clientCon->client_info.capture_code;
-    if (clientCon->dev->glamor)
-    {
-#if defined(XORGXRDP_GLAMOR)
-        if ((mode == 2) || (mode == 4))
-        {
-            return rdpEglCaptureRfx(clientCon, in_reg, out_rects,
-                                    num_out_rects, id);
-        }
-        copy_vmem(clientCon->dev, in_reg);
-#endif
-    }
     switch (mode)
     {
-        case 0:
-            return rdpCapture0(clientCon, in_reg, out_rects, num_out_rects, id);
-        case 1:
-            return rdpCapture1(clientCon, in_reg, out_rects, num_out_rects, id);
-        case 2:
-        case 4:
-            /* used for remotefx capture */
-            return rdpCapture2(clientCon, in_reg, out_rects, num_out_rects, id);
-        case 3:
-        case 5:
+        case CC_SIMPLE:
+            return rdpCaptureSimple(clientCon, in_reg, out_rects, num_out_rects, id);
+        case CC_SUF_A16:
+            return rdpCaptureSufA16(clientCon, in_reg, out_rects, num_out_rects, id);
+        case CC_SUF_RFX: /* surface command RFX */
+            /* FALLTHROUGH */
+        case CC_GFX_PRO: /* GFX progressive */
+            return rdpCaptureGfxPro(clientCon, in_reg, out_rects, num_out_rects, id);
+        case CC_SUF_A2: /* surface command h264 */
             /* used for even align capture */
-            return rdpCapture3(clientCon, in_reg, out_rects, num_out_rects, id);
+            return rdpCaptureSufA2(clientCon, in_reg, out_rects, num_out_rects, id);
+        case CC_GFX_A2: /* GFX h264 */
+            /* used for even align capture */
+            return rdpCaptureGfxA2(clientCon, in_reg, out_rects, num_out_rects, id);
         default:
             LLOGLN(0, ("rdpCapture: mode %d not implemented", mode));
             break;
@@ -1183,6 +1520,7 @@ rdpCaptureResetState(rdpClientCon *clientCon)
                 free(clientCon->rfx_crcs[i]);
                 clientCon->rfx_crcs[i] = NULL;
                 clientCon->num_rfx_crcs_alloc[i] = 0;
+                clientCon->send_key_frame[i] = 1;
             }
             break;
         default:

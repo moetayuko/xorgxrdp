@@ -110,7 +110,9 @@ CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
 libxorgxrdp_asm_la_LIBADD =
 am__objects_1 = a8r8g8b8_to_a8b8g8r8_box_x86_sse2.lo \
-	a8r8g8b8_to_nv12_box_x86_sse2.lo cpuid_x86.lo \
+	a8r8g8b8_to_nv12_box_x86_sse2.lo \
+	a8r8g8b8_to_nv12_709fr_box_x86_sse2.lo \
+	a8r8g8b8_to_yuvalp_box_x86_sse2.lo cpuid_x86.lo \
 	i420_to_rgb32_x86_sse2.lo uyvy_to_rgb32_x86_sse2.lo \
 	yuy2_to_rgb32_x86_sse2.lo yv12_to_rgb32_x86_sse2.lo
 am_libxorgxrdp_asm_la_OBJECTS = $(am__objects_1)
@@ -212,6 +214,8 @@ INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
+LIBDRM_CFLAGS = @LIBDRM_CFLAGS@
+LIBDRM_LIBS = @LIBDRM_LIBS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
@@ -257,6 +261,7 @@ XORG_SERVER_GBM_LIBS = @XORG_SERVER_GBM_LIBS@
 XORG_SERVER_GLAMOR_CFLAGS = @XORG_SERVER_GLAMOR_CFLAGS@
 XORG_SERVER_GLAMOR_LIBS = @XORG_SERVER_GLAMOR_LIBS@
 XORG_SERVER_LIBS = @XORG_SERVER_LIBS@
+XORG_SERVER_MODULES = @XORG_SERVER_MODULES@
 XRDP_CFLAGS = @XRDP_CFLAGS@
 XRDP_LIBS = @XRDP_LIBS@
 abs_builddir = @abs_builddir@
@@ -319,6 +324,8 @@ top_srcdir = @top_srcdir@
 ASMSOURCES = \
   a8r8g8b8_to_a8b8g8r8_box_x86_sse2.asm \
   a8r8g8b8_to_nv12_box_x86_sse2.asm \
+  a8r8g8b8_to_nv12_709fr_box_x86_sse2.asm \
+  a8r8g8b8_to_yuvalp_box_x86_sse2.asm \
   cpuid_x86.asm \
   i420_to_rgb32_x86_sse2.asm \
   uyvy_to_rgb32_x86_sse2.asm \
