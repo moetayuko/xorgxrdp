@@ -1,4 +1,4 @@
-xorgxrdp (1:0.10.0-1) UNRELEASED; urgency=medium
+xorgxrdp (1:0.10.80~nvenc-1) UNRELEASED; urgency=medium
 
   * New upstream version.
   * Add myself to Uploaders.
