@@ -1,3 +1,26 @@
+xorgxrdp (1:0.10.2-1) unstable; urgency=medium
+
+  * New upstream version.
+
+ -- Alex Myczko <tar@debian.org>  Sun, 11 Aug 2024 11:14:31 +0000
+
+xorgxrdp (1:0.10.0-2) unstable; urgency=medium
+
+  * Upload to unstable.
+  * Apply patch to update d/watch and add signing key.
+    (Closes: #1043487, #1036057)
+  * d/control: update build-depends pkg-config to pkgconf.
+
+ -- Alex Myczko <tar@debian.org>  Mon, 22 Jul 2024 16:17:19 +0000
+
+xorgxrdp (1:0.10.0-1) experimental; urgency=medium
+
+  * New upstream version.
+  * Add myself to Uploaders.
+  * d/clean: added.
+
+ -- Gürkan Myczko <tar@debian.org>  Mon, 11 Mar 2024 08:19:50 +0100
+
 xorgxrdp (1:0.9.19-1) unstable; urgency=medium
 
   * New upstream version.
