@@ -1,5 +1,8 @@
 /* config_ac-h.in.  Generated from configure.ac by autoheader.  */
 
+/* support display getter */
+#undef HAS_DIX_GET_DISPLAY_NAME
+
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
@@ -67,6 +70,3 @@
 
 /* Use accelerated SIMD routines. */
 #undef WITH_SIMD
-
-/* Define to empty if 'const' does not conform to ANSI C. */
-#undef const

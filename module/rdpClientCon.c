@@ -30,10 +30,12 @@ Client connection to xrdp
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-#include <limits.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
 
 /* this should be before all X11 .h files */
 #include <xorg-server.h>
@@ -50,7 +52,15 @@ Client connection to xrdp
 #include "rdpInput.h"
 #include "rdpReg.h"
 #include "rdpCapture.h"
+
+#if defined(XORGXRDP_LRANDR)
 #include "rdpRandR.h"
+#include "rdpLRandR.h"
+#include "rdpRandRGrid.h"
+#else
+#include "rdpRandR.h"
+#include "rdpRandRGrid.h"
+#endif
 
 #define LOG_LEVEL 1
 #define LLOGLN(_level, _args) \
@@ -60,6 +70,8 @@ Client connection to xrdp
 
 #define USE_MAX_OS_BYTES 1
 #define MAX_OS_BYTES (16 * 1024 * 1024)
+
+#define MIN_MS_TO_WAIT_FOR_MORE_UPDATES 4
 
 /*
 0 GXclear,        0
@@ -110,6 +122,8 @@ static void
 rdpClientConProcessClientInfoMonitors(rdpPtr dev, rdpClientCon *clientCon);
 static int
 rdpSendMemoryAllocationComplete(rdpPtr dev, rdpClientCon *clientCon);
+static int
+rdpSendAccelAssistMonitors(rdpPtr dev, rdpClientCon *clientCon);
 
 #if XORG_VERSION_CURRENT < XORG_VERSION_NUMERIC(1, 18, 5, 0, 0)
 
@@ -261,14 +275,14 @@ rdpClientConGotConnection(ScreenPtr pScreen, rdpPtr dev)
     /* set idle timer to disconnect */
     if (dev->idle_disconnect_timeout_s > 0)
     {
-        LLOGLN(0, ("rdpClientConGetConnection: "
+        LLOGLN(0, ("rdpClientConGotConnection: "
                    "engaging idle timer, timeout [%d] sec", dev->idle_disconnect_timeout_s));
         dev->idleDisconnectTimer = TimerSet(dev->idleDisconnectTimer, 0, dev->idle_disconnect_timeout_s * 1000,
                                             rdpDeferredIdleDisconnectCallback, dev);
     }
     else
     {
-        LLOGLN(0, ("rdpClientConGetConnection: "
+        LLOGLN(0, ("rdpClientConGotConnection: "
                    "idle_disconnect_timeout set to non-positive value, idle timer turned off"));
     }
 
@@ -359,6 +373,63 @@ rdpDeferredIdleDisconnectCallback(OsTimerPtr timer, CARD32 now, pointer arg)
                                         rdpDeferredIdleDisconnectCallback, dev);
     return 0;
 }
+
+/*****************************************************************************/
+static int
+rdpShutdownAccelAssist(rdpPtr dev, rdpClientCon *clientCon) {
+    ScreenPtr pScreen;
+    PixmapPtr pPixmap;
+    int index;
+    int exit_code = 0;
+
+    LLOGLN(0, ("rdpShutdownAccelAssist:"));
+    if (clientCon->accel_assist_pid <= 0)
+    {
+        return 0;
+    }
+    if (waitpid(clientCon->accel_assist_pid, &exit_code, WNOHANG) == 0)
+    {
+        /* still running */
+        kill(clientCon->accel_assist_pid, SIGTERM);
+        waitpid(clientCon->accel_assist_pid, &exit_code, 0);
+    }
+    pScreen = clientCon->dev->pScreen;
+    for (index = 0; index < 16; index++)
+    {
+        pPixmap = clientCon->accelAssistPixmaps[index];
+        if (pPixmap != NULL)
+        {
+            pScreen->DestroyPixmap(pPixmap);
+        }
+    }
+    clientCon->accel_assist_pid = -1;
+    clientCon->use_accel_assist = 0;
+    return exit_code;
+}
+
+/******************************************************************************/
+static Bool
+rdpClientConUseAccelAssist(rdpPtr dev, rdpClientCon *clientCon)
+{
+    const char *xrdp_use_accel_assist = getenv("XRDP_USE_ACCEL_ASSIST");
+
+    if (xrdp_use_accel_assist == NULL)
+    {
+        return FALSE;
+    }
+    if (strcmp(xrdp_use_accel_assist, "0") == 0)
+    {
+        return FALSE;
+    }
+    if (strcmp(xrdp_use_accel_assist, "1") == 0)
+    {
+        return ((dev->nvidia || dev->glamor) &&
+                ((clientCon->client_info.capture_code == CC_SUF_A2) ||
+                 (clientCon->client_info.capture_code == CC_GFX_A2)));
+    }
+    return 0;
+}
+
 /*****************************************************************************/
 static int
 rdpClientConDisconnect(rdpPtr dev, rdpClientCon *clientCon)
@@ -421,6 +492,10 @@ rdpClientConDisconnect(rdpPtr dev, rdpClientCon *clientCon)
         g_free_unmap_fd(clientCon->shmemptr,
                         clientCon->shmemfd,
                         clientCon->shmem_bytes);
+    }
+    if (clientCon->use_accel_assist)
+    {
+        rdpShutdownAccelAssist(dev, clientCon);
     }
     free(clientCon);
     return 0;
@@ -635,33 +710,34 @@ rdpClientConSendCaps(rdpPtr dev, rdpClientCon *clientCon)
     int len;
     int rv;
     int cap_count;
-    int cap_bytes;
 
     make_stream(ls);
     init_stream(ls, 8192);
     s_push_layer(ls, iso_hdr, 8);
 
     cap_count = 0;
-    cap_bytes = 0;
 
 #if 0
     out_uint16_le(ls, 0);
     out_uint16_le(ls, 4);
     cap_count++;
-    cap_bytes += 4;
 
     out_uint16_le(ls, 1);
     out_uint16_le(ls, 4);
     cap_count++;
-    cap_bytes += 4;
 #endif
+
+    out_uint16_le(ls, 100);   /* Version capability */
+    out_uint16_le(ls, 2 + 2 + 4);
+    out_uint32_le(ls, CLIENT_INFO_CURRENT_VERSION);
+    cap_count++;
 
     s_mark_end(ls);
     len = (int)(ls->end - ls->data);
     s_pop_layer(ls, iso_hdr);
     out_uint16_le(ls, 2); /* caps */
     out_uint16_le(ls, cap_count); /* num caps */
-    out_uint32_le(ls, cap_bytes); /* caps len after header */
+    out_uint32_le(ls, len - 8); /* caps len after header */
 
     rv = rdpClientConSend(dev, clientCon, ls->data, len);
 
@@ -736,8 +812,10 @@ rdpClientConAllocateSharedMemory(rdpClientCon *clientCon, int bytes)
 
 /******************************************************************************/
 static enum shared_memory_status
-convertSharedMemoryStatusToActive(enum shared_memory_status status) {
-    switch (status) {
+convertSharedMemoryStatusToActive(enum shared_memory_status status)
+{
+    switch (status)
+    {
         case SHM_ACTIVE_PENDING:
             return SHM_ACTIVE;
         case SHM_RFX_ACTIVE_PENDING:
@@ -771,52 +849,64 @@ rdpClientConResizeAllMemoryAreas(rdpPtr dev, rdpClientCon *clientCon)
 
     enum shared_memory_status shmemstatus;
 
+    LLOGLN(0, ("rdpClientConResizeAllMemoryAreas:"));
+
     // Updare the rdp size from the client size
     clientCon->rdp_width = width;
     clientCon->rdp_height = height;
 
     /* Set the capture parameters */
-    if ((clientCon->client_info.capture_code == 2) || /* RFX */
-        (clientCon->client_info.capture_code == 4))
+    switch(clientCon->client_info.capture_code)
     {
-        LLOGLN(0, ("rdpClientConProcessMsgClientInfo: got RFX capture"));
-        /* RFX capture needs fixed-size rectangles */
-        clientCon->cap_width = RDPALIGN(width, XRDP_RFX_ALIGN);
-        clientCon->cap_height = RDPALIGN(height, XRDP_RFX_ALIGN);
-        LLOGLN(0, ("  cap_width %d cap_height %d",
-               clientCon->cap_width, clientCon->cap_height));
+        case CC_SUF_RFX: /* RFX */
+        case CC_GFX_PRO:
+            LLOGLN(0, ("rdpClientConProcessMsgClientInfo: got RFX capture"));
+            /* RFX capture needs fixed-size rectangles */
+            clientCon->cap_width = RDPALIGN(width, XRDP_RFX_ALIGN);
+            clientCon->cap_height = RDPALIGN(height, XRDP_RFX_ALIGN);
+            LLOGLN(0, ("  cap_width %d cap_height %d",
+                   clientCon->cap_width, clientCon->cap_height));
 
-        bytes = clientCon->cap_width * clientCon->cap_height *
-                clientCon->rdp_Bpp;
+            bytes = clientCon->cap_width * clientCon->cap_height *
+                    clientCon->rdp_Bpp;
 
-        clientCon->shmem_lineBytes = clientCon->rdp_Bpp * clientCon->cap_width;
-        clientCon->cap_stride_bytes = clientCon->cap_width * 4;
-        shmemstatus = SHM_RFX_ACTIVE_PENDING;
+            clientCon->shmem_lineBytes = clientCon->rdp_Bpp * clientCon->cap_width;
+            clientCon->cap_stride_bytes = clientCon->cap_width * 4;
+            shmemstatus = SHM_RFX_ACTIVE_PENDING;
+
+            dev->msFrameInterval = clientCon->client_info.rfx_frame_interval;
+            break;
+        case CC_SUF_A2: /* H264 */
+        case CC_GFX_A2:
+            LLOGLN(0, ("rdpClientConProcessMsgClientInfo: got H264 capture"));
+            clientCon->cap_width = width;
+            clientCon->cap_height = height;
+
+            bytes = clientCon->cap_width * clientCon->cap_height * 2;
+
+            clientCon->shmem_lineBytes = clientCon->rdp_Bpp * clientCon->cap_width;
+            clientCon->cap_stride_bytes = clientCon->cap_width * 4;
+            shmemstatus = SHM_H264_ACTIVE_PENDING;
+
+            dev->msFrameInterval = clientCon->client_info.h264_frame_interval;
+            break;
+        default:
+            LLOGLN(0, ("rdpClientConProcessMsgClientInfo: got normal capture"));
+            clientCon->cap_width = width;
+            clientCon->cap_width = width;
+            clientCon->cap_height = height;
+
+            bytes = width * height * clientCon->rdp_Bpp;
+
+            clientCon->shmem_lineBytes = clientCon->rdp_Bpp * clientCon->cap_width;
+            clientCon->cap_stride_bytes = clientCon->cap_width * clientCon->rdp_Bpp;
+            shmemstatus = SHM_ACTIVE_PENDING;
+
+            dev->msFrameInterval = clientCon->client_info.normal_frame_interval;
+            break;
     }
-    else if ((clientCon->client_info.capture_code == 3) || /* H264 */
-             (clientCon->client_info.capture_code == 5))
-    {
-        LLOGLN(0, ("rdpClientConProcessMsgClientInfo: got H264 capture"));
-        clientCon->cap_width = width;
-        clientCon->cap_height = height;
 
-        bytes = clientCon->cap_width * clientCon->cap_height * 2;
-
-        clientCon->shmem_lineBytes = clientCon->rdp_Bpp * clientCon->cap_width;
-        clientCon->cap_stride_bytes = clientCon->cap_width * 4;
-        shmemstatus = SHM_H264_ACTIVE_PENDING;
-    }
-    else
-    {
-        clientCon->cap_width = width;
-        clientCon->cap_height = height;
-
-        bytes = width * height * clientCon->rdp_Bpp;
-
-        clientCon->shmem_lineBytes = clientCon->rdp_Bpp * clientCon->cap_width;
-        clientCon->cap_stride_bytes = clientCon->cap_width * clientCon->rdp_Bpp;
-        shmemstatus = SHM_ACTIVE_PENDING;
-    }
+    LLOGLN(0, ("    msFrameInterval %ld", (long)dev->msFrameInterval));
     rdpClientConAllocateSharedMemory(clientCon, bytes);
 
     if (clientCon->client_info.capture_format != 0)
@@ -875,7 +965,7 @@ rdpClientConResizeAllMemoryAreas(rdpPtr dev, rdpClientCon *clientCon)
         dev->allow_screen_resize = 1;
         ok = RRScreenSizeSet(dev->pScreen, width, height, mmwidth, mmheight);
         dev->allow_screen_resize = 0;
-        LLOGLN(0, ("rdpClientConProcessScreenSizeMsg: RRScreenSizeSet ok=[%d]", ok));
+        LLOGLN(0, ("rdpClientConResizeAllMemoryAreas: RRScreenSizeSet ok=[%d]", ok));
     }
 
     rdpCaptureResetState(clientCon);
@@ -898,7 +988,6 @@ rdpClientConProcessMonitorUpdateMsg(rdpPtr dev, rdpClientCon *clientCon,
     LLOGLN(0, ("rdpClientConProcessMonitorUpdateMsg: (%dx%d) #%d",
            width, height, num_monitors));
 
-
     // Update the client_info we have
     clientCon->client_info.display_sizes.monitorCount = num_monitors;
     for (i = 0; i < num_monitors; ++i)
@@ -915,6 +1004,11 @@ rdpClientConProcessMonitorUpdateMsg(rdpPtr dev, rdpClientCon *clientCon,
     /* Tell xrdp we're done */
     rdpClientConAddDirtyScreen(dev, clientCon, 0, 0, width, height);
     rdpSendMemoryAllocationComplete(dev, clientCon);
+
+    if (clientCon->use_accel_assist)
+    {
+        rdpSendAccelAssistMonitors(dev, clientCon);
+    }
 
     return 0;
 }
@@ -995,6 +1089,133 @@ rdpClientConProcessMsgClientInput(rdpPtr dev, rdpClientCon *clientCon)
     return 0;
 }
 
+/******************************************************************************/
+static int
+rdpStartAccelAssist(rdpPtr dev, rdpClientCon *clientCon)
+{
+    char text[64];
+    int spair[2];
+    int index;
+
+    // Accel assist is already running, don't attempt to initialize it again.
+    if (clientCon->accel_assist_pid > 0)
+    {
+        return 0;
+    }
+
+    socketpair(AF_UNIX, SOCK_STREAM, 0, spair);
+
+    clientCon->accel_assist_pid = fork();
+    if (clientCon->accel_assist_pid == -1)
+    {
+        /* error */
+        close(spair[0]);
+        close(spair[1]);
+    }
+    else if (clientCon->accel_assist_pid == 0)
+    {
+        /* child */
+        for (index = 0; index < 256; index++)
+        {
+            if ((index != clientCon->sck) && (index != spair[0]))
+            {
+                close(index);
+            }
+        }
+        open("/dev/null", O_RDWR);
+        open("/dev/null", O_RDWR);
+        open("/dev/null", O_RDWR);
+#ifdef HAS_DIX_GET_DISPLAY_NAME
+        snprintf(text, 63, ":%s", dixGetDisplayName(&dev->pScreen));
+#else
+        snprintf(text, 63, ":%s", display);
+#endif
+        text[63] = 0;
+        setenv("DISPLAY", text, 1);
+        snprintf(text, 63, "%d", spair[0]);
+        text[63] = 0;
+        setenv("XORGXRDP_XORG_FD", text, 1);
+        snprintf(text, 63, "%d", clientCon->sck);
+        text[63] = 0;
+        setenv("XORGXRDP_XRDP_FD", text, 1);
+        snprintf(text, 63, "%s/xrdp-accel-assist", XRDP_LIBEXEC_PATH);
+        text[63] = 0;
+        execlp(text, text, "-d", (void *) 0);
+        exit(0);
+    }
+    else
+    {
+        /* parent */
+        LLOGLN(0, ("rdpStartAccelAssist: started accel assist pid %d",
+               clientCon->accel_assist_pid));
+        rdpClientConRemoveEnabledDevice(clientCon->sck);
+        close(clientCon->sck);
+        close(spair[0]);
+        clientCon->sck = spair[1];
+        g_sck_set_non_blocking(clientCon->sck);
+        rdpClientConAddEnabledDevice(dev->pScreen, clientCon->sck);
+    }
+    return 0;
+}
+
+/******************************************************************************/
+static int
+rdpSendAccelAssistMonitors(rdpPtr dev, rdpClientCon *clientCon)
+{
+    int index;
+    int len;
+    int rv;
+    int width;
+    int height;
+    const int layer_size = 8;
+
+    LLOGLN(0, ("rdpSendAccelAssistMonitors: monitorCount %d",
+           dev->monitorCount));
+    rdpClientConSendPending(dev, clientCon);
+    init_stream(clientCon->out_s, 0);
+    s_push_layer(clientCon->out_s, iso_hdr, layer_size);
+    out_uint16_le(clientCon->out_s, 1); /* clear monitors */
+    out_uint16_le(clientCon->out_s, 4); /* size */
+    clientCon->count++;
+    if (dev->monitorCount < 1)
+    {
+        width = dev->width;
+        height = dev->height;
+        out_uint16_le(clientCon->out_s, 2);
+        out_uint16_le(clientCon->out_s, 20); /* size */
+        out_uint16_le(clientCon->out_s, width);
+        out_uint16_le(clientCon->out_s, height);
+        out_uint32_le(clientCon->out_s, 0xDEADBEEF);
+        out_uint32_le(clientCon->out_s, clientCon->conNumber);
+        out_uint32_le(clientCon->out_s, 0);
+        clientCon->count++;
+    }
+    else
+    {
+        for (index = 0; index < dev->monitorCount; index++)
+        {
+            width = dev->minfo[index].right - dev->minfo[index].left + 1;
+            height = dev->minfo[index].bottom - dev->minfo[index].top + 1;
+            out_uint16_le(clientCon->out_s, 2);
+            out_uint16_le(clientCon->out_s, 20); /* size */
+            out_uint16_le(clientCon->out_s, width);
+            out_uint16_le(clientCon->out_s, height);
+            out_uint32_le(clientCon->out_s, 0xDEADBEEF);
+            out_uint32_le(clientCon->out_s, clientCon->conNumber);
+            out_uint32_le(clientCon->out_s, index);
+            clientCon->count++;
+        }
+    }
+    s_mark_end(clientCon->out_s);
+    len = (int) (clientCon->out_s->end - clientCon->out_s->data);
+    s_pop_layer(clientCon->out_s, iso_hdr);
+    out_uint16_le(clientCon->out_s, 100);
+    out_uint16_le(clientCon->out_s, clientCon->count);
+    out_uint32_le(clientCon->out_s, len - layer_size);
+    rv = rdpClientConSend(dev, clientCon, clientCon->out_s->data, len);
+    return rv;
+}
+
 int
 rdpClientConPreCheck(rdpPtr dev, rdpClientCon *clientCon, int in_size);
 
@@ -1011,12 +1232,12 @@ rdpSendMemoryAllocationComplete(rdpPtr dev, rdpClientCon *clientCon)
 
     switch (clientCon->client_info.capture_code)
     {
-        case 2:
-        case 4:
+        case CC_SUF_RFX:
+        case CC_GFX_PRO:
             alignment = XRDP_RFX_ALIGN;
             break;
-        case 3:
-        case 5:
+        case CC_SUF_A2:
+        case CC_GFX_A2:
             alignment = XRDP_H264_ALIGN;
             break;
         default:
@@ -1039,7 +1260,7 @@ rdpSendMemoryAllocationComplete(rdpPtr dev, rdpClientCon *clientCon)
     s_mark_end(clientCon->out_s);
     len = (int) (clientCon->out_s->end - clientCon->out_s->data);
     s_pop_layer(clientCon->out_s, iso_hdr);
-    out_uint16_le(clientCon->out_s, 100); /* Metadata message to xrdp (or if using helper, helper signal) */
+    out_uint16_le(clientCon->out_s, 100); /* Metadata message to xrdp (or if using accel assist, signal) */
     out_uint16_le(clientCon->out_s, clientCon->count);
     out_uint32_le(clientCon->out_s, len - layer_size);
     rv = rdpClientConSend(dev, clientCon, clientCon->out_s->data, len);
@@ -1098,9 +1319,31 @@ rdpClientConProcessClientInfoMonitors(rdpPtr dev, rdpClientCon *clientCon)
         dev->doMultimon = 0;
         dev->monitorCount = 0;
     }
-
-    rdpRRSetRdpOutputs(dev);
-    RRTellChanged(dev->pScreen);
+#if defined(XORGXRDP_LRANDR)
+    if (dev->nvidia && dev->nvidia_grid)
+    {
+        rdpRandRGridSetRdpOutputs(dev);
+    }
+    else if (dev->nvidia)
+    {
+        rdpLRRSetRdpOutputs(dev);
+    }
+    else
+    {
+        rdpRRSetRdpOutputs(dev);
+        RRTellChanged(dev->pScreen);
+    }
+#else
+    if (dev->nvidia && dev->nvidia_grid)
+    {
+        rdpRandRGridSetRdpOutputs(dev);
+    }
+    else
+    {
+        rdpRRSetRdpOutputs(dev);
+        RRTellChanged(dev->pScreen);
+    }
+#endif
 }
 
 /******************************************************************************/
@@ -1121,6 +1364,8 @@ rdpClientConProcessMsgClientInfo(rdpPtr dev, rdpClientCon *clientCon)
     memcpy(&(clientCon->client_info), s->p - 4, bytes);
     clientCon->client_info.size = bytes;
 
+    // This shouldn't happen - xrdp should check the version we send it
+    // before sending client info.
     if (clientCon->client_info.version != CLIENT_INFO_CURRENT_VERSION)
     {
         LLOGLN(0, ("expected xrdp client_info version %d, got %d",
@@ -1219,6 +1464,14 @@ rdpClientConProcessMsgClientInfo(rdpPtr dev, rdpClientCon *clientCon)
     rdpSendMemoryAllocationComplete(dev, clientCon);
     rdpClientConAddDirtyScreen(dev, clientCon, 0, 0, clientCon->rdp_width,
                                clientCon->rdp_height);
+
+    /* currently only nvenc and h264 is supported */
+    if (rdpClientConUseAccelAssist(dev, clientCon))
+    {
+        clientCon->use_accel_assist = 1;
+        rdpStartAccelAssist(dev, clientCon);
+        rdpSendAccelAssistMonitors(dev, clientCon);
+    }
 
     return 0;
 }
@@ -1560,12 +1813,21 @@ rdpClientConInit(rdpPtr dev)
         g_chmod_hex(socket_dir, 0x1777);
     }
 
+    // Later versions of the X server removed the global display variable
+    // and replaced it with a getter function
+#ifdef HAS_DIX_GET_DISPLAY_NAME
+    const char *display = dixGetDisplayName(&dev->pScreen);
+    if (display == NULL)
+    {
+        FatalError("rdpClientConInit: Can't get display from DIX layer");
+    }
+#endif
+
     errno = 0;
     i = (int)strtol(display, &endptr, 10);
     if (errno != 0 || display == endptr || *endptr != 0)
     {
-        LLOGLN(0, ("rdpClientConInit: can not run at non-interger display"));
-        return 0;
+        FatalError("rdpClientConInit: can not run at non-integer display");
     }
 
     /* TODO: don't hardcode socket name */
@@ -2090,6 +2352,27 @@ rdpClientConDrawLine(rdpPtr dev, rdpClientCon *clientCon,
 
 /******************************************************************************/
 int
+rdpClientConSetCursorSystem(rdpPtr dev, rdpClientCon *clientCon,
+                            int pointer_type)
+{
+    int size;
+
+    if (clientCon->connected)
+    {
+        LLOGLN(10, ("rdpClientConSetCursor:"));
+        size = 2 + 2 + 4;
+        rdpClientConPreCheck(dev, clientCon, size);
+        out_uint16_le(clientCon->out_s, 65); /* set cursor system */
+        out_uint16_le(clientCon->out_s, size); /* size */
+        clientCon->count++;
+        out_uint32_le(clientCon->out_s, pointer_type);
+    }
+
+    return 0;
+}
+
+/******************************************************************************/
+int
 rdpClientConSetCursor(rdpPtr dev, rdpClientCon *clientCon,
                       short x, short y, uint8_t *cur_data, uint8_t *cur_mask)
 {
@@ -2539,7 +2822,7 @@ rdpClientConScheduleDeferredUpdate(rdpPtr dev)
     {
         dev->sendUpdateScheduled = TRUE;
         dev->sendUpdateTimer =
-                TimerSet(dev->sendUpdateTimer, 0, 40,
+                TimerSet(dev->sendUpdateTimer, 0, dev->msFrameInterval,
                          rdpClientConDeferredUpdateCallback, dev);
     }
 }
@@ -2608,7 +2891,7 @@ rdpClientConSendPaintRectShmFd(rdpPtr dev, rdpClientCon *clientCon,
     int num_rects_d;
     int num_rects_c;
     struct stream *s;
-    int capture_code;
+    enum xrdp_capture_code capture_code;
     int start_frame_bytes;
     int wiretosurface1_bytes;
     int wiretosurface2_bytes;
@@ -2625,6 +2908,8 @@ rdpClientConSendPaintRectShmFd(rdpPtr dev, rdpClientCon *clientCon,
            id->flags, id->left, id->top, id->width, id->height));
 
     capture_code = clientCon->client_info.capture_code;
+    LLOGLN(10, ("rdpClientConSendPaintRectShmFd: capture_code %d",
+           capture_code));
 
     num_rects_d = REGION_NUM_RECTS(dirtyReg);
     num_rects_c = numCopyRects;
@@ -2636,7 +2921,7 @@ rdpClientConSendPaintRectShmFd(rdpPtr dev, rdpClientCon *clientCon,
 
     rdpClientConBeginUpdate(dev, clientCon);
 
-    if (capture_code < 4)
+    if (capture_code < CC_GFX_PRO)
     {
         /* non gfx */
         size = 2 + 2 + 2 + num_rects_d * 8 + 2 + num_rects_c * 8;
@@ -2656,15 +2941,15 @@ rdpClientConSendPaintRectShmFd(rdpPtr dev, rdpClientCon *clientCon,
         out_uint32_le(s, clientCon->rect_id);
         out_uint32_le(s, id->shmem_bytes);
         out_uint32_le(s, id->shmem_offset);
-		if (capture_code == 2) /* rfx */
-		{
+        if (capture_code == CC_SUF_RFX) /* rfx */
+        {
             out_uint16_le(s, id->left);
             out_uint16_le(s, id->top);
             out_uint16_le(s, id->width);
             out_uint16_le(s, id->height);
-		}
-		else
-		{
+        }
+        else
+        {
             out_uint16_le(s, 0);
             out_uint16_le(s, 0);
             out_uint16_le(s, clientCon->cap_width);
@@ -2673,7 +2958,7 @@ rdpClientConSendPaintRectShmFd(rdpPtr dev, rdpClientCon *clientCon,
         rdpClientConSendPending(clientCon->dev, clientCon);
         g_sck_send_fd_set(clientCon->sck, "int", 4, &(id->shmem_fd), 1);
     }
-    else if (capture_code == 4) /* gfx pro rfx */
+    else if (capture_code == CC_GFX_PRO) /* gfx pro rfx */
     {
         start_frame_bytes = 8 + 8;
         wiretosurface2_bytes = 8 + 13 +
@@ -2745,7 +3030,7 @@ rdpClientConSendPaintRectShmFd(rdpPtr dev, rdpClientCon *clientCon,
             out_uint32_le(s, 0);                /* shmem_bytes */
         }
     }
-    else if (capture_code == 5) /* gfx h264 */
+    else if (capture_code == CC_GFX_A2) /* gfx h264 */
     {
         start_frame_bytes = 8 + 8;
         wiretosurface1_bytes = 8 + 9 +
@@ -2979,9 +3264,6 @@ rdpDeferredUpdateCallback(OsTimerPtr timer, CARD32 now, pointer arg)
 
 
 /******************************************************************************/
-#define MIN_MS_BETWEEN_FRAMES 40
-#define MIN_MS_TO_WAIT_FOR_MORE_UPDATES 4
-#define UPDATE_RETRY_TIMEOUT 200 // After this number of retries, give up and perform the capture anyway. This prevents an infinite loop.
 static void
 rdpScheduleDeferredUpdate(rdpClientCon *clientCon)
 {
@@ -2998,7 +3280,7 @@ rdpScheduleDeferredUpdate(rdpClientCon *clientCon)
        for more changes before sending an update. Always waiting the longer
        delay would introduce unnecessarily much latency. */
     msToWait = MIN_MS_TO_WAIT_FOR_MORE_UPDATES;
-    minNextUpdateTime = clientCon->lastUpdateTime + MIN_MS_BETWEEN_FRAMES;
+    minNextUpdateTime = clientCon->lastUpdateTime + clientCon->dev->msFrameInterval;
     /* the first check is to gracefully handle the infrequent case of
        the time wrapping around */
     if(clientCon->lastUpdateTime < curTime &&

@@ -1,8 +1,8 @@
 # Process this file with autoconf to produce a configure script
 
-AC_PREREQ(2.65)
+AC_PREREQ(2.69)
 # package version must be x.y.z
-AC_INIT([xorgxrdp], [0.10.2], [xrdp-devel@googlegroups.com])
+AC_INIT([xorgxrdp], [0.10.80], [xrdp-devel@googlegroups.com])
 package_version_major=$(echo ${PACKAGE_VERSION}|cut -d. -f1)
 package_version_minor=$(echo ${PACKAGE_VERSION}|cut -d. -f2)
 package_version_patchlevel=$(echo ${PACKAGE_VERSION}|cut -d. -f3)
@@ -12,9 +12,9 @@ AC_SUBST([package_version_patchlevel], [${package_version_patchlevel}])
 AC_CONFIG_HEADERS(config_ac.h:config_ac-h.in)
 AM_INIT_AUTOMAKE([1.11 foreign parallel-tests])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
-AC_PROG_CC_C99
-AC_C_CONST
-AC_PROG_LIBTOOL
+# autoconf version 2.69 still uses AC_PROG_CC_C99
+m4_version_prereq([2.70], [AC_PROG_CC], [AC_PROG_CC_C99])
+LT_INIT
 
 case $host_os in
         *linux*)
@@ -54,20 +54,23 @@ AX_GCC_FUNC_ATTRIBUTE([format])
 
 PKG_CHECK_MODULES([XORG_SERVER], [xorg-server >= 0], [],
   [AC_MSG_ERROR([please install xserver-xorg-dev, xorg-x11-server-sdk or xorg-x11-server-devel])])
+echo "Xorg version is :"$(pkg-config --modversion xorg-server)
 if test "x${enable_glamor}" = "xyes"; then
   PKG_CHECK_MODULES([XORG_SERVER_GLAMOR], [xorg-server >= 1.19.0])
+  PKG_CHECK_MODULES([LIBDRM], [libdrm >= 0], [], [AC_MSG_ERROR([please install libdrm-dev or libdrm-devel])])
   PKG_CHECK_MODULES([XORG_SERVER_GBM], [gbm >= 0], [], [AC_MSG_ERROR([please install libgbm-dev or mesa-libgbm-devel])])
   PKG_CHECK_MODULES([XORG_SERVER_EPOXY], [epoxy >= 0], [], [AC_MSG_ERROR([please install libepoxy-dev or libepoxy-devel])])
   PKG_CHECK_MODULES([XORG_SERVER_EGL], [egl >= 0], [], [AC_MSG_ERROR([please install libegl1-mesa-dev or mesa-libEGL-devel])])
+  PKG_CHECK_VAR([XORG_SERVER_MODULES], [xorg-server], [moduledir])
 fi
 
 if test x$solaris = xyes; then
     CFLAGS="${CFLAGS} -D_XOPEN_SOURCE=600"
     AC_SUBST(CFLAGS)
-fi
+fi 
 
 if test "x$XRDP_CFLAGS" = "x"; then
-  PKG_CHECK_MODULES([XRDP], [xrdp >= 0.10.0])
+  PKG_CHECK_MODULES([XRDP], [xrdp >= 0.10.80])
   XRDP_CFLAGS=`pkg-config xrdp --cflags`
 fi
 
@@ -85,19 +88,19 @@ AC_SUBST([moduledir])
 
 # SIMD is optional
 AC_ARG_WITH([simd],
-    AC_HELP_STRING([--without-simd],[Omit SIMD extensions.]))
+    AS_HELP_STRING([--without-simd],[Omit SIMD extensions.]))
 if test "x${with_simd}" != "xno"; then
   # Check if we're on a supported CPU
   AC_MSG_CHECKING([if we have SIMD optimisations for cpu type])
   case "$host_cpu" in
     x86_64 | amd64)
       AC_MSG_RESULT([yes (x86_64)])
-      AC_PROG_NASM
+      AXRDP_PROG_NASM
       simd_arch=x86_64
     ;;
     i*86 | x86 | ia32)
       AC_MSG_RESULT([yes (i386)])
-      AC_PROG_NASM
+      AXRDP_PROG_NASM
       simd_arch=i386
     ;;
     *)
@@ -114,10 +117,25 @@ fi
 # shm_open may not be in the C library
 AC_SEARCH_LIBS([shm_open], [rt])
 
+# See if we need to use a getter function for the display name
+CFLAGS_sav="$CFLAGS"
+CFLAGS="$CFLAGS $XORG_SERVER_CFLAGS"
+AC_CHECK_DECL([dixGetDisplayName],
+    [AC_DEFINE([HAS_DIX_GET_DISPLAY_NAME], [1], [support display getter])],
+    [],
+    [[#include <dix.h>]])
+CFLAGS="$CFLAGS_sav"
+
+
 AC_ARG_ENABLE(glamor, AS_HELP_STRING([--enable-glamor],
               [Use glamor(requires xorg server 1.19+) (default: no)]),
               [], [enable_glamor=no])
 AM_CONDITIONAL(WITH_GLAMOR, [test x$enable_glamor = xyes])
+
+AC_ARG_ENABLE(lrandr, AS_HELP_STRING([--enable-lrandr],
+              [Use local randr (default: no)]),
+              [], [enable_lrandr=no])
+AM_CONDITIONAL(WITH_LRANDR, [test x$enable_lrandr = xyes])
 
 AM_CONDITIONAL(WITH_SIMD_AMD64, [test x$simd_arch = xx86_64])
 AM_CONDITIONAL(WITH_SIMD_X86, [test x$simd_arch = xi386])
