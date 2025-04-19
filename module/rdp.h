@@ -130,14 +130,24 @@ typedef struct _rdpPointer rdpPointer;
 
 struct _rdpKeyboard
 {
-    int pause_spe;
-    int ctrl_down;
-    int alt_down;
-    int shift_down;
+    /**
+     * State of tab key
+     *
+     * Used to remove mstsc.exe tab KeyRelease before and after TS_SYNC_EVENT
+     */
     int tab_down;
-    /* this is toggled every time num lock key is released, not like the
-       above *_down vars */
-    int scroll_lock_down;
+
+    /**
+     * Whether or not to skip the next numlock key press/release
+     */
+    int skip_numlock;
+
+    int x11_keycode_caps_lock; ///< Used in TS_SYNC_EVENT processing
+    int x11_keycode_num_lock; ///< Used in TS_SYNC_EVENT processing
+    int x11_keycode_scroll_lock; ///< Used in TS_SYNC_EVENT processing
+
+    int scroll_lock_down; ///< Whether key is up/down
+    int scroll_lock_state; ///< Toggle state
     DeviceIntPtr device;
 };
 typedef struct _rdpKeyboard rdpKeyboard;
@@ -282,6 +292,8 @@ struct _rdpRec
     CARD32 last_event_time_ms;
     CARD32 last_wheel_time_ms;
 
+    CARD32 msFrameInterval;
+
     int conNumber;
 
     struct _rdpCounts counts;
@@ -297,6 +309,8 @@ struct _rdpRec
 
     copy_box_proc a8r8g8b8_to_a8b8g8r8_box;
     copy_box_dst2_proc a8r8g8b8_to_nv12_box;
+    copy_box_dst2_proc a8r8g8b8_to_nv12_709fr_box;
+    copy_box_proc a8r8g8b8_to_yuvalp_box;
 
     /* multimon */
     struct monitor_info minfo[16]; /* client monitor data */
@@ -304,6 +318,8 @@ struct _rdpRec
     int monitorCount;
     /* glamor */
     Bool glamor;
+    Bool nvidia;
+    Bool nvidia_grid;
     PixmapPtr screenSwPixmap;
     void *xvPutImage;
     /* dri */
@@ -314,7 +330,7 @@ struct _rdpRec
 };
 typedef struct _rdpRec rdpRec;
 typedef struct _rdpRec * rdpPtr;
-#define XRDPPTR(_p) ((rdpPtr)((_p)->driverPrivate))
+#define XRDPPTR(_p) ((rdpPtr)((_p)->reservedPtr[0]))
 
 struct _rdpGCRec
 {

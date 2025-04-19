@@ -115,10 +115,14 @@ struct _rdpClientCon
     int rect_id_ack;
     enum shared_memory_status shmemstatus;
 
+    PixmapPtr accelAssistPixmaps[16];
+
     OsTimerPtr updateTimer;
     CARD32 lastUpdateTime; /* millisecond timestamp */
     int updateScheduled; /* boolean */
     int updateRetries;
+
+    CARD32 msFrameInterval;
 
     RegionPtr dirtyRegion;
 
@@ -128,6 +132,9 @@ struct _rdpClientCon
 
     /* true = skip drawing */
     int suppress_output;
+
+    int use_accel_assist;
+    int accel_assist_pid;
 
     struct _rdpClientCon *next;
     struct _rdpClientCon *prev;
@@ -175,6 +182,9 @@ extern _X_EXPORT int
 rdpClientConAddAllReg(rdpPtr dev, RegionPtr reg, DrawablePtr pDrawable);
 extern _X_EXPORT int
 rdpClientConAddAllBox(rdpPtr dev, BoxPtr box, DrawablePtr pDrawable);
+extern _X_EXPORT int
+rdpClientConSetCursorSystem(rdpPtr dev, rdpClientCon *clientCon,
+                            int pointer_type);
 extern _X_EXPORT int
 rdpClientConSetCursor(rdpPtr dev, rdpClientCon *clientCon,
                       short x, short y, uint8_t *cur_data, uint8_t *cur_mask);

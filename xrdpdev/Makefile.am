@@ -5,7 +5,7 @@ EXTRA_HEADERS =
 
 
 if WITH_GLAMOR
-EXTRA_FLAGS += -DXORGXRDP_GLAMOR -DGLAMOR_FOR_XORG
+EXTRA_FLAGS += $(LIBDRM_CFLAGS) -DXORGXRDP_GLAMOR -DGLAMOR_FOR_XORG
 EXTRA_SOURCES += xrdpdri2.c xrdpdri3.c
 EXTRA_HEADERS += xrdpdri2.h xrdpdri3.h
 endif
@@ -34,5 +34,5 @@ xrdpdev_drv_la_LIBADD =
 xrdpdevsysconfdir=$(sysconfdir)/X11/xrdp
 
 dist_xrdpdevsysconf_DATA = \
-  xorg.conf
+  xorg.conf xorg_nvidia.conf
 

@@ -101,16 +101,34 @@ l_bound_by(int val, int low, int high)
 static void
 rdpEnqueueMotion(DeviceIntPtr device, int x, int y)
 {
+    int flags;
+    ValuatorMask *mask;
+
     LLOGLN(10, ("rdpEnqueueMotion:"));
-    xf86PostMotionEvent(device, TRUE, 0, 2, x, y);
+    mask = valuator_mask_new(2);
+    if (mask != NULL)
+    {
+        flags = POINTER_ABSOLUTE | POINTER_SCREEN | POINTER_NORAW;
+        valuator_mask_set(mask, 0, x);
+        valuator_mask_set(mask, 1, y);
+        QueuePointerEvents(device, MotionNotify, 0, flags, mask);
+        valuator_mask_free(&mask);
+    }
 }
 
 /******************************************************************************/
 static void
 rdpEnqueueButton(DeviceIntPtr device, int type, int buttons)
 {
+    ValuatorMask *mask;
+
     LLOGLN(10, ("rdpEnqueueButton:"));
-    xf86PostButtonEvent(device, FALSE, buttons, type == ButtonPress, 0, 0);
+    mask = valuator_mask_new(0);
+    if (mask != NULL)
+    {
+        QueuePointerEvents(device, type, buttons, 0, mask);
+        valuator_mask_free(&mask);
+    }
 }
 
 /******************************************************************************/
@@ -421,13 +439,10 @@ rdpmouseUnInit(InputDriverPtr drv, InputInfoPtr info, int flags)
 /******************************************************************************/
 static InputDriverRec rdpmouse =
 {
-    PACKAGE_VERSION_MAJOR,    /* version   */
-    g_xrdp_mouse_name,        /* name      */
-    NULL,                     /* identify  */
-    rdpmousePreInit,          /* preinit   */
-    rdpmouseUnInit,           /* uninit    */
-    NULL,                     /* module    */
-    0                         /* ref count */
+    .driverVersion = PACKAGE_VERSION_MAJOR,
+    .driverName = g_xrdp_mouse_name,
+    .PreInit = rdpmousePreInit,
+    .UnInit = rdpmouseUnInit
 };
 
 /******************************************************************************/
@@ -449,24 +464,23 @@ rdpmouseUnplug(pointer p)
 /******************************************************************************/
 static XF86ModuleVersionInfo rdpmouseVersionRec =
 {
-    XRDP_MOUSE_NAME,
-    MODULEVENDORSTRING,
-    MODINFOSTRING1,
-    MODINFOSTRING2,
-    XORG_VERSION_CURRENT,
-    PACKAGE_VERSION_MAJOR,
-    PACKAGE_VERSION_MINOR,
-    PACKAGE_VERSION_PATCHLEVEL,
-    ABI_CLASS_XINPUT,
-    ABI_XINPUT_VERSION,
-    MOD_CLASS_XINPUT,
-    { 0, 0, 0, 0 }
+    .modname = XRDP_MOUSE_NAME,
+    .vendor = MODULEVENDORSTRING,
+    ._modinfo1_ = MODINFOSTRING1,
+    ._modinfo2_ = MODINFOSTRING2,
+    .xf86version = XORG_VERSION_CURRENT,
+    .majorversion = PACKAGE_VERSION_MAJOR,
+    .minorversion = PACKAGE_VERSION_MINOR,
+    .patchlevel = PACKAGE_VERSION_PATCHLEVEL,
+    .abiclass = ABI_CLASS_XINPUT,
+    .abiversion = ABI_XINPUT_VERSION,
+    .moduleclass = MOD_CLASS_XINPUT
 };
 
 /******************************************************************************/
 _X_EXPORT XF86ModuleData xrdpmouseModuleData =
 {
-    &rdpmouseVersionRec,
-    rdpmousePlug,
-    rdpmouseUnplug
+    .vers = &rdpmouseVersionRec,
+    .setup = rdpmousePlug,
+    .teardown = rdpmouseUnplug
 };
