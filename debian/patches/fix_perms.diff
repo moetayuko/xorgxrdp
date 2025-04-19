@@ -7,11 +7,9 @@ Subject: Fix permissions between xrdp and sesman.
 Forwarded: https://github.com/neutrinolabs/xorgxrdp/pull/16
  https://github.com/neutrinolabs/xrdp/pull/464
 
-Index: xorgxrdp-0.10.0/module/rdpClientCon.c
-===================================================================
---- xorgxrdp-0.10.0.orig/module/rdpClientCon.c
-+++ xorgxrdp-0.10.0/module/rdpClientCon.c
-@@ -1552,7 +1552,7 @@ rdpClientConInit(rdpPtr dev)
+--- a/module/rdpClientCon.c
++++ b/module/rdpClientCon.c
+@@ -1810,7 +1810,7 @@
                  return 0;
              }
          }
@@ -19,4 +17,4 @@ Index: xorgxrdp-0.10.0/module/rdpClientCon.c
 +        g_chmod_hex(socket_dir, 0x3777);
      }
  
-     errno = 0;
+     // Later versions of the X server removed the global display variable
